@@ -1,3 +1,17 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .slider {
+    @apply accent-red-600;
+  }
+  
+  .slider::-webkit-slider-thumb {
+    @apply appearance-none w-4 h-4 bg-red-600 rounded-full cursor-pointer;
+  }
+  
+  .slider::-moz-range-thumb {
+    @apply w-4 h-4 bg-red-600 rounded-full cursor-pointer border-none;
+  }
+}
