@@ -1,4 +1,4 @@
-import { FilterSettings, VideoMetadata } from '../types';
+import type { FilterSettings, VideoMetadata } from '../types';
 import { injectStyles } from './youtube-styles';
 
 class YouTubeFilter {
@@ -31,7 +31,7 @@ class YouTubeFilter {
   }
 
   private setupMessageListeners() {
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    chrome.runtime.onMessage.addListener((message, _sender, _sendResponse) => {
       if (message.type === 'SETTINGS_UPDATED') {
         this.settings = message.settings;
         this.filterVideos();

@@ -4,14 +4,24 @@
 
 @layer components {
   .slider {
-    @apply accent-red-600;
+    accent-color: #dc2626;
   }
   
   .slider::-webkit-slider-thumb {
-    @apply appearance-none w-4 h-4 bg-red-600 rounded-full cursor-pointer;
+    appearance: none;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 9999px;
+    cursor: pointer;
+    background-color: #dc2626;
   }
   
   .slider::-moz-range-thumb {
-    @apply w-4 h-4 bg-red-600 rounded-full cursor-pointer border-none;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 9999px;
+    cursor: pointer;
+    border: none;
+    background-color: #dc2626;
   }
 }

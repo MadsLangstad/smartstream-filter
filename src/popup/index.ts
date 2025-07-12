@@ -1,4 +1,4 @@
-import { FilterSettings } from '../types';
+import type { FilterSettings } from '../types';
 import '../style.css';
 
 class PopupController {

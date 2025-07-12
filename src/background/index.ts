@@ -1,4 +1,4 @@
-import { FilterSettings, MessageType, StorageData } from '../types';
+import type { FilterSettings, MessageType } from '../types';
 
 const DEFAULT_SETTINGS: FilterSettings = {
   minDuration: 5,
@@ -6,11 +6,13 @@ const DEFAULT_SETTINGS: FilterSettings = {
   enabled: true
 };
 
+/// <reference types="chrome"/>
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({ settings: DEFAULT_SETTINGS });
 });
 
-chrome.runtime.onMessage.addListener((message: MessageType, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: MessageType, _sender, sendResponse) => {
   switch (message.type) {
     case 'GET_SETTINGS':
       chrome.storage.local.get(['settings'], (result: { settings?: FilterSettings }) => {
