@@ -1,4 +1,5 @@
 import { FilterSettings, VideoMetadata } from '../types';
+import { injectStyles } from './youtube-styles';
 
 class YouTubeFilter {
   private settings: FilterSettings = {
@@ -13,6 +14,7 @@ class YouTubeFilter {
   }
 
   private async init() {
+    injectStyles();
     await this.loadSettings();
     this.setupMessageListeners();
     this.injectUI();
