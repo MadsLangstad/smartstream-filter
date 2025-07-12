@@ -1,5 +1,4 @@
 import type { FilterSettings } from '../types';
-import '../style.css';
 
 class PopupController {
   private minSlider!: HTMLInputElement;
@@ -35,6 +34,7 @@ class PopupController {
         this.maxSlider.value = settings.maxDuration.toString();
         this.enabledToggle.checked = settings.enabled;
         this.updateDisplayValues();
+        this.updateSyncStatus(settings.enabled);
         resolve();
       });
     });
@@ -43,6 +43,7 @@ class PopupController {
   private setupListeners() {
     this.enabledToggle.addEventListener('change', () => {
       this.updateSettings({ enabled: this.enabledToggle.checked });
+      this.updateSyncStatus(this.enabledToggle.checked);
     });
 
     this.minSlider.addEventListener('input', () => {
@@ -79,6 +80,23 @@ class PopupController {
 
   private updateSettings(update: Partial<FilterSettings>) {
     chrome.runtime.sendMessage({ type: 'UPDATE_SETTINGS', settings: update });
+  }
+
+  private updateSyncStatus(enabled: boolean) {
+    const syncStatus = document.getElementById('sync-status');
+    const syncText = document.getElementById('sync-text');
+    
+    if (syncStatus && syncText) {
+      if (enabled) {
+        syncStatus.classList.remove('paused');
+        syncStatus.classList.add('connected');
+        syncText.textContent = 'Real-time sync enabled';
+      } else {
+        syncStatus.classList.remove('connected');
+        syncStatus.classList.add('paused');
+        syncText.textContent = 'Filter paused';
+      }
+    }
   }
 }
 

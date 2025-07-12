@@ -1,10 +1,23 @@
+#!/bin/bash
+
+# Build the extension
+npm run build
+
+# Copy manifest
+cp manifest.json dist/
+
+# Rename the built popup HTML file
+mv dist/popup.html dist/popup-built.html 2>/dev/null || true
+
+# Create a simpler popup.html that references the built CSS
+cat > dist/popup.html << 'EOF'
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SmartStream Filter</title>
-    <link rel="stylesheet" href="dist/popup.css">
+    <link rel="stylesheet" href="popup.css">
   </head>
   <body class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white w-[340px] h-[420px] overflow-hidden">
     <div class="flex flex-col h-full">
@@ -95,6 +108,9 @@
         </div>
       </div>
     </div>
-    <script type="module" src="dist/popup.js"></script>
+    <script type="module" src="popup.js"></script>
   </body>
 </html>
+EOF
+
+echo "Build complete! Extension ready in dist/"
