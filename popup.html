@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SmartStream Filter</title>
+    <link rel="stylesheet" href="dist/popup.css">
+  </head>
+  <body class="bg-gray-900 text-white p-6 w-80">
+    <div class="space-y-6">
+      <div class="flex items-center justify-between">
+        <h1 class="text-xl font-bold flex items-center gap-2">
+          <span class="text-2xl">🎚️</span>
+          SmartStream Filter
+        </h1>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="filter-enabled" class="sr-only peer" checked>
+          <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+        </label>
+      </div>
+      
+      <div class="space-y-4">
+        <div class="space-y-2">
+          <label class="flex justify-between text-sm text-gray-300">
+            <span>Min Duration</span>
+            <span id="min-value" class="font-mono text-white">5m</span>
+          </label>
+          <input type="range" id="min-duration" min="0" max="240" value="5" 
+                 class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider">
+        </div>
+        
+        <div class="space-y-2">
+          <label class="flex justify-between text-sm text-gray-300">
+            <span>Max Duration</span>
+            <span id="max-value" class="font-mono text-white">30m</span>
+          </label>
+          <input type="range" id="max-duration" min="0" max="240" value="30" 
+                 class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider">
+        </div>
+      </div>
+      
+      <p class="text-xs text-gray-400 text-center">
+        Syncs with YouTube in real time
+      </p>
+    </div>
+    <script type="module" src="dist/popup.js"></script>
+  </body>
+</html>

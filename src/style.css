@@ -1,3 +1,27 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .slider {
+    accent-color: #dc2626;
+  }
+  
+  .slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 9999px;
+    cursor: pointer;
+    background-color: #dc2626;
+  }
+  
+  .slider::-moz-range-thumb {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 9999px;
+    cursor: pointer;
+    border: none;
+    background-color: #dc2626;
+  }
+}
