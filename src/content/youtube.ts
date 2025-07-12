@@ -10,6 +10,7 @@ class YouTubeFilter {
   private observer: MutationObserver | null = null;
 
   constructor() {
+    console.log('[SmartStream] Initializing YouTube filter');
     this.init();
   }
 
@@ -40,14 +41,21 @@ class YouTubeFilter {
   }
 
   private injectUI() {
+    console.log('[SmartStream] Injecting UI');
+    let attempts = 0;
     const checkHeader = setInterval(() => {
+      attempts++;
       const header = document.querySelector('#masthead-container') || 
                      document.querySelector('#header') ||
                      document.querySelector('ytd-masthead');
       
       if (header) {
+        console.log('[SmartStream] Found header, creating controls');
         clearInterval(checkHeader);
         this.createFilterControls(header);
+      } else if (attempts > 30) {
+        console.log('[SmartStream] Header not found after 30 attempts');
+        clearInterval(checkHeader);
       }
     }, 1000);
   }
@@ -189,4 +197,14 @@ class YouTubeFilter {
   }
 }
 
-new YouTubeFilter();
+// Wait for DOM to be ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    new YouTubeFilter();
+  });
+} else {
+  // DOM is already loaded, but wait a bit for YouTube's dynamic content
+  setTimeout(() => {
+    new YouTubeFilter();
+  }, 1000);
+}
