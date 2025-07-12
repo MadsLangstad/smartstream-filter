@@ -1,4 +1,16 @@
 export const injectStyles = () => {
+  if (!document.head) {
+    // Wait for head to be available
+    const observer = new MutationObserver((_mutations, obs) => {
+      if (document.head) {
+        obs.disconnect();
+        injectStyles();
+      }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    return;
+  }
+  
   const style = document.createElement('style');
   style.textContent = `
     .smartstream-controls {

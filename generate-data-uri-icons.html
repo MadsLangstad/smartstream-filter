@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Generate PNG Icons</title>
+</head>
+<body>
+  <h2>SmartStream Filter Icons Generator</h2>
+  <p>1. Åpne denne filen i nettleseren</p>
+  <p>2. Høyreklikk på hvert ikon og lagre som PNG</p>
+  <p>3. Lagre i dist/icons/ mappen</p>
+  
+  <div style="display: flex; gap: 20px; margin: 20px 0;">
+    <div>
+      <h3>icon-16.png</h3>
+      <canvas id="canvas16" width="16" height="16" style="border: 1px solid #ccc; image-rendering: pixelated; width: 64px; height: 64px;"></canvas>
+    </div>
+    <div>
+      <h3>icon-48.png</h3>
+      <canvas id="canvas48" width="48" height="48" style="border: 1px solid #ccc;"></canvas>
+    </div>
+    <div>
+      <h3>icon-128.png</h3>
+      <canvas id="canvas128" width="128" height="128" style="border: 1px solid #ccc;"></canvas>
+    </div>
+  </div>
+  
+  <script>
+    function drawIcon(size) {
+      const canvas = document.getElementById(`canvas${size}`);
+      const ctx = canvas.getContext('2d');
+      
+      // Background
+      ctx.fillStyle = '#1f2937';
+      ctx.fillRect(0, 0, size, size);
+      
+      // Slider track
+      ctx.strokeStyle = '#4b5563';
+      ctx.lineWidth = Math.max(2, size / 16);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(size * 0.2, size * 0.5);
+      ctx.lineTo(size * 0.8, size * 0.5);
+      ctx.stroke();
+      
+      // Slider handle
+      ctx.fillStyle = '#dc2626';
+      ctx.beginPath();
+      ctx.arc(size * 0.5, size * 0.5, size * 0.12, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Add glow effect for larger sizes
+      if (size > 16) {
+        ctx.shadowBlur = size / 8;
+        ctx.shadowColor = '#dc2626';
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(size * 0.5, size * 0.5, size * 0.08, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    
+    // Draw all icons
+    [16, 48, 128].forEach(size => drawIcon(size));
+  </script>
+</body>
+</html>

@@ -9,6 +9,7 @@ class PopupController {
   private enabledToggle!: HTMLInputElement;
 
   constructor() {
+    console.log('[SmartStream] Popup initializing');
     this.init();
   }
 
@@ -29,6 +30,7 @@ class PopupController {
   private async loadSettings() {
     return new Promise<void>((resolve) => {
       chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings: FilterSettings) => {
+        console.log('[SmartStream] Loaded settings:', settings);
         this.minSlider.value = settings.minDuration.toString();
         this.maxSlider.value = settings.maxDuration.toString();
         this.enabledToggle.checked = settings.enabled;
@@ -80,6 +82,10 @@ class PopupController {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    new PopupController();
+  });
+} else {
   new PopupController();
-});
+}

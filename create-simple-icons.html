@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Generate Icons</title>
+</head>
+<body>
+  <h2>SmartStream Filter Icons</h2>
+  <canvas id="canvas16" width="16" height="16"></canvas>
+  <canvas id="canvas48" width="48" height="48"></canvas>
+  <canvas id="canvas128" width="128" height="128"></canvas>
+  
+  <script>
+    function createIcon(size) {
+      const canvas = document.getElementById(`canvas${size}`);
+      const ctx = canvas.getContext('2d');
+      
+      // Background
+      ctx.fillStyle = '#1f2937';
+      ctx.fillRect(0, 0, size, size);
+      
+      // Draw a simple slider icon
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth = size / 8;
+      ctx.lineCap = 'round';
+      
+      // Horizontal line
+      ctx.beginPath();
+      ctx.moveTo(size * 0.2, size * 0.5);
+      ctx.lineTo(size * 0.8, size * 0.5);
+      ctx.stroke();
+      
+      // Slider handle
+      ctx.fillStyle = '#dc2626';
+      ctx.beginPath();
+      ctx.arc(size * 0.5, size * 0.5, size * 0.15, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Convert to PNG and log base64
+      const dataURL = canvas.toDataURL('image/png');
+      console.log(`Icon ${size}x${size}:`, dataURL);
+      
+      // Create download link
+      const link = document.createElement('a');
+      link.download = `icon-${size}.png`;
+      link.href = dataURL;
+      link.textContent = `Download ${size}x${size}`;
+      link.style.display = 'block';
+      link.style.margin = '10px';
+      document.body.appendChild(link);
+    }
+    
+    // Generate all sizes
+    [16, 48, 128].forEach(size => createIcon(size));
+  </script>
+</body>
+</html>
