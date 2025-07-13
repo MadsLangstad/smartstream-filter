@@ -35,10 +35,7 @@ if [ -f "dist/popup.html" ]; then
     echo "✓ Popup HTML already exists in dist/"
 else
     # Try to copy from a backup location
-    if [ -f "popup-styled.html" ]; then
-        cp popup-styled.html dist/popup.html
-        echo "✓ Popup HTML copied from popup-styled.html"
-    elif [ -f "popup.html" ]; then
+    if [ -f "popup.html" ]; then
         cp popup.html dist/popup.html
         echo "✓ Popup HTML copied from source"
     else
