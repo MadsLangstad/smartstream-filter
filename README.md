@@ -183,7 +183,3 @@ Contributions to the open source components are welcome! Please ensure any contr
 - Thanks to all contributors
 - Inspired by the need for better content control
 - Built with TypeScript, Vite, and Chrome Extensions API
-
----
-
-**SmartStream Filter** - Take control of your streaming experience 🎯
