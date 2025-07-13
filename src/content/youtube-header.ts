@@ -11,8 +11,11 @@ class YouTubeHeaderIntegration {
     enabled: true
   };
 
+  private observer: MutationObserver | null = null;
+  
   constructor() {
     this.waitForHeader();
+    this.setupMutationObserver();
   }
 
   private waitForHeader() {
@@ -212,13 +215,13 @@ class YouTubeHeaderIntegration {
       <div class="smartstream-duration-control">
         <span>Min:</span>
         <input type="range" class="smartstream-slider" id="smartstream-min" 
-               min="0" max="240" value="${this.settings.minDuration}">
+               min="0" max="600" value="${this.settings.minDuration}">
         <span class="smartstream-value" id="smartstream-min-value">${this.formatDuration(this.settings.minDuration)}</span>
       </div>
       <div class="smartstream-duration-control">
         <span>Max:</span>
         <input type="range" class="smartstream-slider" id="smartstream-max" 
-               min="0" max="240" value="${this.settings.maxDuration}">
+               min="0" max="600" value="${this.settings.maxDuration}">
         <span class="smartstream-value" id="smartstream-max-value">${this.formatDuration(this.settings.maxDuration)}</span>
       </div>
     `;
@@ -325,16 +328,33 @@ class YouTubeHeaderIntegration {
     }
 
     const videos = document.querySelectorAll('ytd-video-renderer, ytd-grid-video-renderer, ytd-rich-item-renderer');
+    console.log(`[SmartStream] Filtering ${videos.length} videos. Min: ${this.settings.minDuration}m, Max: ${this.settings.maxDuration}m`);
+    
+    let shown = 0;
+    let hidden = 0;
     
     videos.forEach(video => {
       const durationElement = video.querySelector('span.ytd-thumbnail-overlay-time-status-renderer, ytd-thumbnail-overlay-time-status-renderer');
       if (durationElement) {
-        const duration = this.parseDuration(durationElement.textContent?.trim() || '');
-        const shouldShow = duration >= this.settings.minDuration * 60 && 
-                          duration <= this.settings.maxDuration * 60;
+        const durationText = durationElement.textContent?.trim() || '';
+        const duration = this.parseDuration(durationText);
+        const durationMinutes = Math.floor(duration / 60);
+        const shouldShow = durationMinutes >= this.settings.minDuration && 
+                          durationMinutes <= this.settings.maxDuration;
+        
         (video as HTMLElement).style.display = shouldShow ? '' : 'none';
+        
+        if (shouldShow) shown++;
+        else hidden++;
+        
+        // Debug first few videos
+        if (shown + hidden <= 5) {
+          console.log(`[SmartStream] Video: "${durationText}" = ${durationMinutes}m, show: ${shouldShow}`);
+        }
       }
     });
+    
+    console.log(`[SmartStream] Filter results: ${shown} shown, ${hidden} hidden`);
   }
 
   private parseDuration(durationText: string): number {
@@ -353,6 +373,33 @@ class YouTubeHeaderIntegration {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  }
+  
+  private filterTimeout: ReturnType<typeof setTimeout> | null = null;
+  
+  private setupMutationObserver() {
+    this.observer = new MutationObserver(() => {
+      // Debounce filtering to avoid too frequent updates
+      if (this.filterTimeout) clearTimeout(this.filterTimeout);
+      this.filterTimeout = setTimeout(() => {
+        this.filterVideos();
+      }, 500);
+    });
+    
+    // Start observing when body is available
+    const startObserving = () => {
+      const targetNode = document.querySelector('ytd-app') || document.body;
+      this.observer?.observe(targetNode, {
+        childList: true,
+        subtree: true
+      });
+    };
+    
+    if (document.body) {
+      startObserving();
+    } else {
+      document.addEventListener('DOMContentLoaded', startObserving);
+    }
   }
 }
 
