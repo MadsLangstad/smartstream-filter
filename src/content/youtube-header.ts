@@ -346,11 +346,6 @@ class YouTubeHeaderIntegration {
         
         if (shouldShow) shown++;
         else hidden++;
-        
-        // Debug first few videos
-        if (shown + hidden <= 5) {
-          console.log(`[SmartStream] Video: "${durationText}" = ${durationMinutes}m, show: ${shouldShow}`);
-        }
       }
     });
     
@@ -358,11 +353,20 @@ class YouTubeHeaderIntegration {
   }
 
   private parseDuration(durationText: string): number {
-    const parts = durationText.split(':').map(p => parseInt(p));
+    // YouTube sometimes has duplicate timestamps like "20:50\n    20:50"
+    // Take the first one
+    const cleanText = durationText.trim().split('\n')[0].trim();
+    const parts = cleanText.split(':').map(p => parseInt(p));
+    
     if (parts.length === 3) {
+      // HH:MM:SS format - return in seconds
       return parts[0] * 3600 + parts[1] * 60 + parts[2];
     } else if (parts.length === 2) {
+      // MM:SS format - return in seconds
       return parts[0] * 60 + parts[1];
+    } else if (parts.length === 1) {
+      // Just seconds
+      return parts[0];
     }
     return 0;
   }
@@ -378,12 +382,28 @@ class YouTubeHeaderIntegration {
   private filterTimeout: ReturnType<typeof setTimeout> | null = null;
   
   private setupMutationObserver() {
-    this.observer = new MutationObserver(() => {
-      // Debounce filtering to avoid too frequent updates
-      if (this.filterTimeout) clearTimeout(this.filterTimeout);
-      this.filterTimeout = setTimeout(() => {
-        this.filterVideos();
-      }, 500);
+    this.observer = new MutationObserver((mutations) => {
+      // Only filter if video elements were added
+      const hasVideoChanges = mutations.some(mutation => {
+        return Array.from(mutation.addedNodes).some(node => {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const element = node as Element;
+            return element.tagName === 'YTD-VIDEO-RENDERER' || 
+                   element.tagName === 'YTD-GRID-VIDEO-RENDERER' ||
+                   element.tagName === 'YTD-RICH-ITEM-RENDERER' ||
+                   element.querySelector('ytd-video-renderer, ytd-grid-video-renderer, ytd-rich-item-renderer');
+          }
+          return false;
+        });
+      });
+
+      if (hasVideoChanges) {
+        // Debounce filtering to avoid too frequent updates
+        if (this.filterTimeout) clearTimeout(this.filterTimeout);
+        this.filterTimeout = setTimeout(() => {
+          this.filterVideos();
+        }, 250);
+      }
     });
     
     // Start observing when body is available

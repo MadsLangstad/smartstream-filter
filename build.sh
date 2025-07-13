@@ -35,10 +35,7 @@ if [ -f "dist/popup.html" ]; then
     echo "✓ Popup HTML already exists in dist/"
 else
     # Try to copy from a backup location
-    if [ -f "popup-styled.html" ]; then
-        cp popup-styled.html dist/popup.html
-        echo "✓ Popup HTML copied from popup-styled.html"
-    elif [ -f "popup.html" ]; then
+    if [ -f "popup.html" ]; then
         cp popup.html dist/popup.html
         echo "✓ Popup HTML copied from source"
     else
@@ -47,6 +44,20 @@ else
         exit 1
     fi
 fi
+
+# Copy onboarding files
+if [ -f "src/onboarding.html" ]; then
+    cp src/onboarding.html dist/onboarding.html
+    echo "✓ Onboarding HTML copied"
+fi
+if [ -f "src/onboarding.js" ]; then
+    cp src/onboarding.js dist/onboarding.js
+    echo "✓ Onboarding JS copied"
+fi
+
+# Copy documentation files
+cp PRIVACY_POLICY.md dist/ 2>/dev/null && echo "✓ Privacy policy copied"
+cp TERMS_OF_USE.md dist/ 2>/dev/null && echo "✓ Terms of use copied"
 
 echo ""
 echo "Build complete! Extension ready in dist/"
@@ -57,3 +68,4 @@ echo "✓ JavaScript files built"
 echo "✓ Manifest copied"
 echo "✓ Icon verified"
 echo "✓ Popup HTML verified"
+echo "✓ Onboarding HTML verified"
