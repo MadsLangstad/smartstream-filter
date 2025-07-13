@@ -16,6 +16,7 @@ class PopupController {
     await this.setupElements();
     await this.loadSettings();
     this.setupListeners();
+    this.setupMessageListener();
   }
 
   private async setupElements() {
@@ -81,7 +82,7 @@ class PopupController {
   private updateSettings(update: Partial<FilterSettings>) {
     chrome.runtime.sendMessage({ type: 'UPDATE_SETTINGS', settings: update });
   }
-
+  
   private updateSyncStatus(enabled: boolean) {
     const syncStatus = document.getElementById('sync-status');
     const syncText = document.getElementById('sync-text');
@@ -97,6 +98,20 @@ class PopupController {
         syncText.textContent = 'Filter paused';
       }
     }
+  }
+
+  private setupMessageListener() {
+    // Listen for settings updates from content script
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message.type === 'SETTINGS_UPDATED') {
+        console.log('[SmartStream] Popup received settings update:', message.settings);
+        this.minSlider.value = message.settings.minDuration.toString();
+        this.maxSlider.value = message.settings.maxDuration.toString();
+        this.enabledToggle.checked = message.settings.enabled;
+        this.updateDisplayValues();
+        this.updateSyncStatus(message.settings.enabled);
+      }
+    });
   }
 }
 
