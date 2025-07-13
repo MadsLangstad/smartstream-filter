@@ -45,6 +45,20 @@ else
     fi
 fi
 
+# Copy onboarding files
+if [ -f "src/onboarding.html" ]; then
+    cp src/onboarding.html dist/onboarding.html
+    echo "✓ Onboarding HTML copied"
+fi
+if [ -f "src/onboarding.js" ]; then
+    cp src/onboarding.js dist/onboarding.js
+    echo "✓ Onboarding JS copied"
+fi
+
+# Copy documentation files
+cp PRIVACY_POLICY.md dist/ 2>/dev/null && echo "✓ Privacy policy copied"
+cp TERMS_OF_USE.md dist/ 2>/dev/null && echo "✓ Terms of use copied"
+
 echo ""
 echo "Build complete! Extension ready in dist/"
 echo "Load the extension from: $(pwd)/dist"
@@ -54,3 +68,4 @@ echo "✓ JavaScript files built"
 echo "✓ Manifest copied"
 echo "✓ Icon verified"
 echo "✓ Popup HTML verified"
+echo "✓ Onboarding HTML verified"

@@ -8,8 +8,19 @@ const DEFAULT_SETTINGS: FilterSettings = {
 
 /// <reference types="chrome"/>
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   chrome.storage.local.set({ settings: DEFAULT_SETTINGS });
+  
+  // Show onboarding on fresh install
+  if (details.reason === 'install') {
+    chrome.storage.local.get(['onboardingComplete'], (result) => {
+      if (!result.onboardingComplete) {
+        chrome.tabs.create({
+          url: chrome.runtime.getURL('onboarding.html')
+        });
+      }
+    });
+  }
 });
 
 chrome.runtime.onMessage.addListener((message: MessageType, _sender, sendResponse) => {
