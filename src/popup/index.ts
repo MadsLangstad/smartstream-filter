@@ -99,7 +99,7 @@ class PopupController {
       }
     }
   }
-  
+
   private setupMessageListener() {
     // Listen for settings updates from content script
     chrome.runtime.onMessage.addListener((message) => {
