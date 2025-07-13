@@ -2,16 +2,13 @@
 
 echo "Building SmartStream Filter extension..."
 
-# Build TypeScript and bundle with Vite
 npm run build
 
-# Copy manifest to dist
 cp manifest.json dist/
 
-# Create icons directory if it doesn't exist
 mkdir -p dist/icons
 
-# Always copy the correct icon from source
+# Always check source for extension icon
 if [ -f "icons/ssf.png" ]; then
     echo "Copying extension icon..."
     cp -f icons/ssf.png dist/icons/ssf.png
@@ -30,13 +27,12 @@ else
     exit 1
 fi
 
-# Handle popup HTML - preserve existing or copy from backup
 if [ -f "dist/popup.html" ]; then
     echo "✓ Popup HTML already exists in dist/"
 else
-    # Try to copy from a backup location
-    if [ -f "popup.html" ]; then
-        cp popup.html dist/popup.html
+
+    if [ -f "src/popup/popup.html" ]; then
+        cp src/popup/popup.html dist/popup.html
         echo "✓ Popup HTML copied from source"
     else
         echo "✗ ERROR: No popup.html found! Extension will not work."
@@ -45,17 +41,15 @@ else
     fi
 fi
 
-# Copy onboarding files
-if [ -f "src/onboarding.html" ]; then
-    cp src/onboarding.html dist/onboarding.html
+if [ -f "src/onboarding/onboarding.html" ]; then
+    cp src/onboarding/onboarding.html dist/onboarding.html
     echo "✓ Onboarding HTML copied"
 fi
-if [ -f "src/onboarding.js" ]; then
-    cp src/onboarding.js dist/onboarding.js
+if [ -f "src/onboarding/onboarding.js" ]; then
+    cp src/onboarding/onboarding.js dist/onboarding.js
     echo "✓ Onboarding JS copied"
 fi
 
-# Copy documentation files
 cp PRIVACY_POLICY.md dist/ 2>/dev/null && echo "✓ Privacy policy copied"
 cp TERMS_OF_USE.md dist/ 2>/dev/null && echo "✓ Terms of use copied"
 

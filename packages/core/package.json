@@ -1,0 +1,12 @@
+{
+  "name": "@smartstream-filter/core",
+  "version": "1.0.0",
+  "description": "Core filtering logic for SmartStream Filter (MIT Licensed)",
+  "main": "index.ts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/smartstream-filter",
+    "directory": "packages/core"
+  }
+}
