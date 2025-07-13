@@ -1,4 +1,5 @@
 import type { FilterSettings } from '../types';
+import { featureManager } from '../services/feature-manager';
 
 console.log('[SmartStream] Loading YouTube integration');
 console.log('[SmartStream] Current URL:', window.location.href);
@@ -14,6 +15,11 @@ class YouTubeHeaderIntegration {
   private observer: MutationObserver | null = null;
   
   constructor() {
+    this.initializeFeatures();
+  }
+
+  private async initializeFeatures() {
+    await featureManager.initialize();
     this.waitForHeader();
     this.setupMutationObserver();
   }
@@ -195,6 +201,17 @@ class YouTubeHeaderIntegration {
           display: none;
         }
       }
+
+      .smartstream-premium-badge {
+        font-size: 16px;
+        margin-left: 4px;
+        cursor: pointer;
+        transition: transform 0.2s;
+      }
+
+      .smartstream-premium-badge:hover {
+        transform: scale(1.2);
+      }
     `;
     document.head.appendChild(style);
 
@@ -225,6 +242,15 @@ class YouTubeHeaderIntegration {
         <span class="smartstream-value" id="smartstream-max-value">${this.formatDuration(this.settings.maxDuration)}</span>
       </div>
     `;
+
+    // Add premium indicator if user has premium features
+    if (featureManager.canUseAdvancedFilters()) {
+      const premiumBadge = document.createElement('div');
+      premiumBadge.className = 'smartstream-premium-badge';
+      premiumBadge.innerHTML = '⭐';
+      premiumBadge.title = 'Premium features active';
+      container.appendChild(premiumBadge);
+    }
     
     container.appendChild(toggle);
     container.appendChild(durationControls);
