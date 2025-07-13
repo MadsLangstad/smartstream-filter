@@ -60,7 +60,7 @@ class YouTubeHeaderIntegration {
         display: flex;
         align-items: center;
         gap: 8px;
-        margin: 0 12px;
+        margin: 0px 12px;
         height: 40px;
       }
 
@@ -187,7 +187,7 @@ class YouTubeHeaderIntegration {
         }
       }
 
-      @media (max-width: 900px) {
+      @media (max-width: 950px) {
         #smartstream-container {
           display: none;
         }
