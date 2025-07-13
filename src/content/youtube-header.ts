@@ -1,5 +1,8 @@
-import type { FilterSettings } from '../types';
-import { featureManager } from '../services/feature-manager';
+interface FilterSettings {
+  minDuration: number;
+  maxDuration: number;
+  enabled: boolean;
+}
 
 console.log('[SmartStream] Loading YouTube integration');
 console.log('[SmartStream] Current URL:', window.location.href);
@@ -13,13 +16,23 @@ class YouTubeHeaderIntegration {
   };
 
   private observer: MutationObserver | null = null;
+  private isPremium: boolean = false;
   
   constructor() {
     this.initializeFeatures();
   }
 
   private async initializeFeatures() {
-    await featureManager.initialize();
+    // Check premium status from storage
+    try {
+      const stored = await chrome.storage.sync.get(['userPlan']);
+      if (stored.userPlan && stored.userPlan.type === 'premium') {
+        this.isPremium = true;
+      }
+    } catch (error) {
+      console.error('[SmartStream] Error checking premium status:', error);
+    }
+    
     this.waitForHeader();
     this.setupMutationObserver();
   }
@@ -244,7 +257,7 @@ class YouTubeHeaderIntegration {
     `;
 
     // Add premium indicator if user has premium features
-    if (featureManager.canUseAdvancedFilters()) {
+    if (this.isPremium) {
       const premiumBadge = document.createElement('div');
       premiumBadge.className = 'smartstream-premium-badge';
       premiumBadge.innerHTML = '⭐';
