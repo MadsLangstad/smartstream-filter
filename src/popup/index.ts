@@ -201,6 +201,9 @@ class PopupController {
     // Wait for PaywallManager to initialize
     await this.paywall.waitForInit();
     
+    // Force a license validation check when popup opens
+    await this.paywall.validateLicense();
+    
     const user = this.paywall.getUser();
     const license = this.paywall.getLicense();
     

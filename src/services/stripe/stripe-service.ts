@@ -177,13 +177,20 @@ export class StripeService {
       
       const data = await response.json();
       
-      if (data.paid && data.licenseKey && data.authToken) {
-        // Store auth token and license key
-        await chrome.storage.local.set({
+      if (data.paid && data.authToken) {
+        // Store auth token and whatever else we have
+        const toStore: any = {
           authToken: data.authToken,
-          licenseKey: data.licenseKey,
           userEmail: data.email
-        });
+        };
+        
+        // Only store license key if we have it
+        if (data.licenseKey) {
+          toStore.licenseKey = data.licenseKey;
+        }
+        
+        await chrome.storage.local.set(toStore);
+        logger.info('Stored auth credentials:', { hasLicense: !!data.licenseKey });
       }
       
       return {

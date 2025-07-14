@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from '../../utils/logger';
+import { STRIPE_CONFIG } from '../../config/stripe.config';
 
 const logger = createLogger('Paywall');
 
@@ -54,6 +55,7 @@ export class PaywallManager {
   
   private constructor() {
     this.init();
+    this.setupFocusListener();
   }
   
   static getInstance(): PaywallManager {
@@ -75,14 +77,15 @@ export class PaywallManager {
     if (stored.authToken) {
       this.authToken = stored.authToken;
       this.user = stored.userEmail ? { id: stored.licenseKey || 'pending', email: stored.userEmail } : null;
+      
+      // Always validate if we have auth token, even without license key
+      // This will fetch the license if it's been created
+      this.validateLicense().catch(err => logger.error('License validation failed:', err));
     }
     
-    // Set license if we have both auth and license key
-    if (stored.authToken && stored.licenseKey) {
+    // Set cached license if available
+    if (stored.license) {
       this.license = stored.license;
-      
-      // Validate in background
-      this.validateLicense().catch(err => logger.error('License validation failed:', err));
     }
   }
   
@@ -133,9 +136,20 @@ export class PaywallManager {
     }
     
     // Check if user is authenticated
-    if (!this.user || !this.authToken) {
+    if (!this.authToken) {
       await this.showAuthFlow();
       return false;
+    }
+    
+    // If we have auth token but no user, try to set user from storage
+    if (!this.user && this.authToken) {
+      const stored = await chrome.storage.local.get(['userEmail', 'licenseKey']);
+      if (stored.userEmail) {
+        this.user = { 
+          id: stored.licenseKey || 'pending', 
+          email: stored.userEmail 
+        };
+      }
     }
     
     // Validate license
@@ -159,6 +173,46 @@ export class PaywallManager {
    */
   async validateLicense(): Promise<boolean> {
     const stored = await chrome.storage.local.get(['licenseKey', 'authToken']);
+    
+    // If we have an auth token but no license key, it might be processing
+    if (stored.authToken && !stored.licenseKey) {
+      logger.info('Auth token found but no license key yet, checking with server...');
+      
+      // Try to get license from server using auth token
+      try {
+        logger.info('Fetching licenses with auth token:', stored.authToken);
+        const response = await fetch(`${STRIPE_CONFIG.apiBaseUrl}/licenses/me`, {
+          headers: {
+            'Authorization': `Bearer ${stored.authToken}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.licenses && data.licenses.length > 0) {
+            const license = data.licenses[0];
+            
+            // Store the license key
+            await chrome.storage.local.set({ 
+              licenseKey: license.licenseKey 
+            });
+            
+            // Continue with validation
+            stored.licenseKey = license.licenseKey;
+          }
+        } else if (response.status === 401) {
+          logger.error('Auth token is invalid or expired. Status:', response.status);
+          // Clear invalid token
+          await chrome.storage.local.remove(['authToken', 'licenseKey', 'userEmail']);
+          this.authToken = null;
+          this.user = null;
+          throw new Error('Invalid auth token - please authenticate again');
+        }
+      } catch (error) {
+        logger.error('Failed to fetch licenses:', error);
+      }
+    }
+    
     if (!stored.licenseKey || !stored.authToken) return false;
     
     try {
@@ -345,16 +399,16 @@ export class PaywallManager {
   private async startCheckout(planId: string): Promise<void> {
     try {
       // Check if we should use demo mode
-      // Only use demo mode if:
-      // 1. No auth token at all, OR
-      // 2. Auth token explicitly starts with 'demo-token'
-      let isDemoMode = !this.authToken || this.authToken.startsWith('demo-token');
+      // Only use demo mode if auth token explicitly starts with 'demo-token'
+      // Always use real Stripe for production, even without auth token
+      let isDemoMode = this.authToken?.startsWith('demo-token') || false;
       
-      // If we have an auth token that's not a demo token, always use real Stripe
-      if (this.authToken && !this.authToken.startsWith('demo-token')) {
-        logger.info('Using real Stripe checkout for authenticated user');
-        isDemoMode = false;
-      }
+      // Log the decision
+      logger.info('Checkout mode decision:', {
+        hasAuthToken: !!this.authToken,
+        authTokenPrefix: this.authToken?.substring(0, 10),
+        isDemoMode
+      });
       
       if (isDemoMode) {
         // Demo mode - simulate purchase
@@ -537,5 +591,51 @@ export class PaywallManager {
     
     await chrome.storage.local.remove(['authToken', 'licenseKey', 'userEmail', 'license', 'deviceId']);
     window.location.reload();
+  }
+  
+  /**
+   * Setup listener for tab focus to refresh license after payment
+   */
+  private setupFocusListener(): void {
+    if (typeof window === 'undefined') return;
+    
+    let lastValidation = 0;
+    const MIN_INTERVAL = 10000; // 10 seconds minimum between checks
+    
+    window.addEventListener('focus', async () => {
+      const now = Date.now();
+      
+      // Don't check too frequently
+      if (now - lastValidation < MIN_INTERVAL) return;
+      
+      lastValidation = now;
+      
+      // If we don't have a license or it's free, check for updates
+      if (!this.license || this.license.plan === 'free') {
+        logger.info('Tab focused - checking for license updates...');
+        
+        const oldPlan = this.license?.plan;
+        const isValid = await this.validateLicense();
+        
+        if (isValid && this.license?.plan !== 'free' && this.license?.plan !== oldPlan) {
+          logger.info('License updated after focus! New plan:', this.license?.plan);
+          
+          // Show success message
+          const { showSuccessToast } = await import('../../ui/components/feedback/toast');
+          showSuccessToast('Premium activated! Refreshing to enable new features...');
+          
+          // Emit event for UI updates
+          const { EventBus } = await import('../../core/infrastructure/event-bus');
+          const eventBus = EventBus.getInstance();
+          eventBus.emit('license-updated', { 
+            licensed: true, 
+            plan: this.license!.plan 
+          });
+          
+          // Reload after a short delay
+          setTimeout(() => window.location.reload(), 1500);
+        }
+      }
+    });
   }
 }

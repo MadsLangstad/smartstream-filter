@@ -54,14 +54,135 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 // Listen for tab updates to detect Stripe payment success
-chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url) {
     // Check if this is a payment success redirect
     if (tab.url.includes('smartstream_success=true')) {
-      // Import and handle payment redirect
-      const { StripeService } = await import('../services/stripe/stripe-service');
-      const stripeService = StripeService.getInstance();
-      await stripeService.handlePaymentRedirect();
+      console.log('Payment success detected in background:', tab.url);
+      
+      // Parse URL parameters
+      const url = new URL(tab.url);
+      const sessionId = url.searchParams.get('session_id');
+      const plan = url.searchParams.get('plan');
+      
+      if (sessionId) {
+        // Import and verify payment
+        const { StripeService } = await import('../services/stripe/stripe-service');
+        const stripeService = StripeService.getInstance();
+        
+        // Verify the payment
+        const result = await stripeService.verifyPaymentSuccess(sessionId);
+        
+        if (result.success && result.data?.success) {
+          console.log('Payment verified successfully:', result.data);
+          
+          // If we got auth token but no license key yet, webhook might still be processing
+          if (result.data?.authToken && !result.data?.licenseKey) {
+            console.log('Auth token received, but license key pending. Webhook might still be processing.');
+            
+            // Store what we have
+            await chrome.storage.local.set({
+              authToken: result.data.authToken,
+              userEmail: result.data.email || ''
+            });
+            
+            // Show message that payment is being processed
+            chrome.tabs.sendMessage(tabId, {
+              type: 'PAYMENT_PROCESSING',
+              message: 'Payment received! Your license is being activated...'
+            }, () => {
+              if (chrome.runtime.lastError) {
+                console.debug('Content script not ready:', chrome.runtime.lastError.message);
+              }
+            });
+            
+            // Set up a retry to check for license
+            let retries = 0;
+            const maxRetries = 10;
+            const checkInterval = setInterval(async () => {
+              retries++;
+              
+              const { PaywallManager } = await import('../services/paywall/paywall-manager');
+              const paywallManager = PaywallManager.getInstance();
+              
+              // Force validation which will try to fetch license
+              const isValid = await paywallManager.validateLicense();
+              
+              if (isValid || retries >= maxRetries) {
+                clearInterval(checkInterval);
+                
+                if (isValid) {
+                  console.log('License activated successfully!');
+                  
+                  // Send success message
+                  chrome.tabs.sendMessage(tabId, {
+                    type: 'PAYMENT_SUCCESS',
+                    plan: plan,
+                    licenseKey: 'activated'
+                  }, () => {
+                    if (chrome.runtime.lastError) {
+                      console.debug('Content script not ready:', chrome.runtime.lastError.message);
+                    }
+                  });
+                } else {
+                  console.error('License activation timed out');
+                }
+                
+                // Clean the URL
+                if (tab.url) {
+                  const cleanUrl = new URL(tab.url);
+                  cleanUrl.searchParams.delete('smartstream_success');
+                  cleanUrl.searchParams.delete('plan');
+                  cleanUrl.searchParams.delete('session_id');
+                  
+                  chrome.tabs.update(tabId, { url: cleanUrl.toString() });
+                }
+              }
+            }, 3000); // Check every 3 seconds
+            
+            return; // Exit early, we'll handle success in the interval
+          }
+          
+          // Update license in PaywallManager
+          const { PaywallManager } = await import('../services/paywall/paywall-manager');
+          const paywallManager = PaywallManager.getInstance();
+          
+          // Set the license and auth info
+          if (result.data?.licenseKey && result.data?.authToken) {
+            await paywallManager.setLicenseInfo({
+              licenseKey: result.data.licenseKey,
+              authToken: result.data.authToken,
+              email: result.data.email || ''
+            });
+            
+            // Force license refresh
+            await paywallManager.validateLicense();
+            
+            console.log('License updated successfully');
+            
+            // Send message to content script to refresh UI
+            chrome.tabs.sendMessage(tabId, {
+              type: 'PAYMENT_SUCCESS',
+              plan: plan,
+              licenseKey: result.data.licenseKey
+            }, () => {
+              if (chrome.runtime.lastError) {
+                console.debug('Content script not ready:', chrome.runtime.lastError.message);
+              }
+            });
+            
+            // Clean the URL
+            const cleanUrl = new URL(tab.url);
+            cleanUrl.searchParams.delete('smartstream_success');
+            cleanUrl.searchParams.delete('plan');
+            cleanUrl.searchParams.delete('session_id');
+            
+            chrome.tabs.update(tabId, { url: cleanUrl.toString() });
+          }
+        } else {
+          console.error('Payment verification failed:', result);
+        }
+      }
     }
   }
 });

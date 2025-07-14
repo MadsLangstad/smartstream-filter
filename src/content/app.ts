@@ -214,6 +214,33 @@ export class SmartStreamApp {
           await this.filterVideos();
         }
         break;
+        
+      case 'PAYMENT_PROCESSING':
+        console.log('[SmartStream] Payment processing:', message);
+        
+        // Show processing toast
+        const { showInfoToast } = await import('../ui/components/feedback/toast');
+        showInfoToast(message.message || 'Processing payment...');
+        break;
+        
+      case 'PAYMENT_SUCCESS':
+        console.log('[SmartStream] Payment success received:', message);
+        
+        // Show success toast
+        const { showSuccessToast } = await import('../ui/components/feedback/toast');
+        showSuccessToast(`Successfully upgraded to ${message.plan} plan!`);
+        
+        // Refresh UI components to show premium features
+        this.container.eventBus.emit('license-updated', { 
+          licensed: true,
+          plan: message.plan 
+        });
+        
+        // Reinitialize UI to show premium features
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+        break;
     }
   }
   

@@ -161,7 +161,7 @@ export class HeaderControls {
     const advancedBtn = this.container.querySelector('.smartstream-advanced-btn');
     advancedBtn?.addEventListener('click', async () => {
       const paywallManager = PaywallManager.getInstance();
-      const hasAccess = await paywallManager.checkFeatureAccess('advanced-filters');
+      const hasAccess = await paywallManager.checkFeatureAccess('advanced_filters');
       
       if (!hasAccess) {
         await paywallManager.showPaywall('Advanced Filters');
