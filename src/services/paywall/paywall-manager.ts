@@ -15,14 +15,14 @@ export interface User {
 }
 
 export interface License {
-  id: string;
-  userId: string;
+  licenseKey: string;
+  email: string;
+  productId: string;
   plan: 'free' | 'basic' | 'pro' | 'lifetime';
-  status: 'active' | 'expired' | 'cancelled';
+  status: 'active' | 'expired' | 'cancelled' | 'suspended';
   features: string[];
-  validUntil: string;
-  deviceLimit: number;
-  activatedDevices: string[];
+  validUntil?: string;
+  devices: number;
 }
 
 export interface PlanDetails {
@@ -68,12 +68,17 @@ export class PaywallManager {
     this._deviceId = await this.getOrCreateDeviceId();
     
     // Load cached auth data
-    const stored = await chrome.storage.local.get(['authToken', 'user', 'license']);
+    const stored = await chrome.storage.local.get(['authToken', 'licenseKey', 'userEmail', 'license']);
     logger.debug('Loaded from storage:', stored);
     
+    // Always set authToken if it exists
     if (stored.authToken) {
       this.authToken = stored.authToken;
-      this.user = stored.user;
+      this.user = stored.userEmail ? { id: stored.licenseKey || 'pending', email: stored.userEmail } : null;
+    }
+    
+    // Set license if we have both auth and license key
+    if (stored.authToken && stored.licenseKey) {
       this.license = stored.license;
       
       // Validate in background
@@ -109,10 +114,15 @@ export class PaywallManager {
   /**
    * Check if user has access to a premium feature
    */
-  async checkFeatureAccess(_feature: string): Promise<boolean> {
+  async checkFeatureAccess(feature: string): Promise<boolean> {
     // Check if user has access to the feature without showing paywall
-    // Check if the license is valid
-    return this.license !== null && new Date(this.license.validUntil) > new Date();
+    if (!this.license) return false;
+    
+    // Check if the license is active
+    if (this.license.status !== 'active') return false;
+    
+    // Check if feature is included in plan
+    return this.license.features.includes(feature);
   }
   
   async requirePremium(feature: string): Promise<boolean> {
@@ -147,68 +157,70 @@ export class PaywallManager {
   /**
    * Validate license with server
    */
-  private async validateLicense(): Promise<boolean> {
-    if (!this.authToken || !this.license) return false;
+  async validateLicense(): Promise<boolean> {
+    const stored = await chrome.storage.local.get(['licenseKey', 'authToken']);
+    if (!stored.licenseKey || !stored.authToken) return false;
     
     try {
-      // DEMO MODE - In production, remove this block
-      if (this.authToken.startsWith('demo-token')) {
-        // Check if license is still valid
-        const isValid = new Date(this.license.validUntil) > new Date();
-        
-        // Update cache
+      // Check if demo mode
+      if (stored.authToken.startsWith('demo-token')) {
+        // Demo mode always valid
         this.cache.validationTime = Date.now();
-        this.cache.validationResult = isValid;
-        
-        return isValid;
+        this.cache.validationResult = true;
+        return true;
       }
       
-      // PRODUCTION CODE - Uncomment below
-      /*
-      const response = await fetch(`${this.API_BASE}/license/validate`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.authToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          licenseId: this.license.id,
-          deviceId: this.deviceId
-        })
-      });
+      // Production mode - validate with API
+      const { StripeService } = await import('../stripe/stripe-service');
+      const stripeService = StripeService.getInstance();
       
-      if (!response.ok) {
-        if (response.status === 401) {
+      const result = await stripeService.validateLicense(stored.licenseKey, stored.authToken);
+      
+      if (!result.success) {
+        if (result.error?.message?.includes('Invalid auth token')) {
           // Token expired, need to re-authenticate
+          logger.warn('Auth token expired, logging out...');
           await this.logout();
           return false;
         }
-        throw new Error(`Validation failed: ${response.status}`);
+        throw new Error(result.error?.message || 'Validation failed');
       }
       
-      const data = await response.json();
+      const data = result.data;
       
-      // Update license data
-      this.license = data.license;
-      await chrome.storage.local.set({ license: this.license });
+      if (data && data.valid && data.license) {
+        // Update license data
+        const productToPlan: Record<string, 'basic' | 'pro' | 'lifetime'> = {
+          'price_basic_monthly': 'basic',
+          'price_pro_monthly': 'pro', 
+          'price_lifetime': 'lifetime'
+        };
+        
+        this.license = {
+          licenseKey: stored.licenseKey,
+          email: data.license.email,
+          productId: data.license.productId,
+          plan: productToPlan[data.license.productId] || 'basic',
+          status: data.license.status as any,
+          features: this.getPlanFeatures(productToPlan[data.license.productId] || 'basic'),
+          devices: data.license.devices
+        };
+        
+        await chrome.storage.local.set({ license: this.license });
+      }
       
       // Update cache
       this.cache.validationTime = Date.now();
-      this.cache.validationResult = data.valid;
+      this.cache.validationResult = data?.valid || false;
       
-      return data.valid;
-      */
-      
-      // For now, return true in demo mode
-      this.cache.validationTime = Date.now();
-      this.cache.validationResult = true;
-      return true;
+      return data?.valid || false;
     } catch (error) {
       logger.error('License validation error:', error);
       
       // Fallback to cached result if available
-      if (this.license && new Date(this.license.validUntil) > new Date()) {
-        return true;
+      if (this.cache.validationResult && 
+          Date.now() - this.cache.validationTime < this.CACHE_DURATION) {
+        return this.cache.validationResult;
       }
       
       return false;
@@ -222,16 +234,28 @@ export class PaywallManager {
     const { showAuthModal } = await import('../../ui/components/modals/auth-modal');
     
     const result = await showAuthModal();
-    if (result.success) {
-      this.authToken = result.token || null;
-      this.user = result.user || null;
-      this.license = result.license || null;
-      
-      await chrome.storage.local.set({
-        authToken: this.authToken,
-        user: this.user,
-        license: this.license
-      });
+    if (result.success && result.email) {
+      // For demo mode
+      if (result.token?.startsWith('demo-token')) {
+        this.authToken = result.token;
+        this.user = { id: 'demo-user', email: result.email };
+        this.license = {
+          licenseKey: 'demo-license',
+          email: result.email,
+          productId: 'demo',
+          plan: 'pro',
+          status: 'active',
+          features: this.getPlanFeatures('pro'),
+          devices: 1
+        };
+        
+        await chrome.storage.local.set({
+          authToken: this.authToken,
+          licenseKey: 'demo-license',
+          userEmail: result.email,
+          license: this.license
+        });
+      }
       
       // Reload to apply changes
       window.location.reload();
@@ -320,18 +344,46 @@ export class PaywallManager {
    */
   private async startCheckout(planId: string): Promise<void> {
     try {
-      // DEMO MODE - In production, use real API
-      if (!this.authToken || this.authToken.startsWith('demo-token')) {
-        // Simulate checkout by directly upgrading the plan
-        alert(`Demo Mode: Simulating ${planId} plan purchase...`);
+      // Check if we should use demo mode
+      // Only use demo mode if:
+      // 1. No auth token at all, OR
+      // 2. Auth token explicitly starts with 'demo-token'
+      let isDemoMode = !this.authToken || this.authToken.startsWith('demo-token');
+      
+      // If we have an auth token that's not a demo token, always use real Stripe
+      if (this.authToken && !this.authToken.startsWith('demo-token')) {
+        logger.info('Using real Stripe checkout for authenticated user');
+        isDemoMode = false;
+      }
+      
+      if (isDemoMode) {
+        // Demo mode - simulate purchase
+        logger.info('Demo mode: Simulating purchase...');
         
-        // Update license to new plan
-        if (this.license) {
-          this.license.plan = planId as any;
-          this.license.features = this.getPlanFeatures(planId);
-          this.license.validUntil = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+        const confirmed = confirm(
+          `Demo Mode: This would normally open Stripe Checkout for the ${planId} plan.\n\n` +
+          `In production, you would be redirected to a secure payment page.\n\n` +
+          `Click OK to simulate a successful purchase.`
+        );
+        
+        if (confirmed) {
+          // Create a demo license
+          const demoLicense = {
+            licenseKey: 'demo-license-' + Date.now(),
+            email: this.user?.email || 'demo@example.com',
+            productId: 'demo-' + planId,
+            plan: planId as any,
+            status: 'active' as const,
+            features: this.getPlanFeatures(planId),
+            validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+            devices: 1
+          };
           
-          await chrome.storage.local.set({ license: this.license });
+          this.license = demoLicense;
+          await chrome.storage.local.set({ 
+            license: demoLicense,
+            licenseKey: demoLicense.licenseKey
+          });
           
           // Show success
           const { showSuccessToast } = await import('../../ui/components/feedback/toast');
@@ -343,34 +395,40 @@ export class PaywallManager {
         return;
       }
       
-      // PRODUCTION CODE
-      /*
-      const response = await fetch(`${this.API_BASE}/checkout/session`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.authToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          planId,
-          successUrl: `${window.location.origin}/success`,
-          cancelUrl: window.location.href
-        })
+      // Production mode - use Stripe
+      logger.info('Starting Stripe checkout for plan:', planId);
+      
+      const { StripeService } = await import('../stripe/stripe-service');
+      const stripeService = StripeService.getInstance();
+      
+      const result = await stripeService.createCheckoutSession({
+        planId: planId as 'basic' | 'pro' | 'lifetime',
+        email: this.user?.email || '',
+        userId: this.user?.id
       });
       
-      if (!response.ok) throw new Error('Failed to create checkout session');
-      
-      const { checkoutUrl } = await response.json();
-      
-      // Open checkout in new tab
-      chrome.tabs.create({ url: checkoutUrl });
-      
-      // Listen for success
-      this.listenForPaymentSuccess();
-      */
+      if (result.success && result.data) {
+        // Open Stripe Checkout in new tab/window
+        if (typeof window !== 'undefined') {
+          window.open(result.data.url, '_blank');
+        } else {
+          // Fallback for extension context
+          await chrome.tabs.create({ url: result.data.url });
+        }
+        
+        // Start listening for payment success
+        this.listenForPaymentSuccess();
+      } else {
+        throw new Error(result.error?.message || 'Failed to create checkout session');
+      }
     } catch (error) {
       logger.error('Checkout error:', error);
-      alert('Failed to start checkout. Please try again.');
+      
+      // Show user-friendly error
+      const { showErrorToast } = await import('../../ui/components/feedback/toast');
+      showErrorToast(
+        error instanceof Error ? error.message : 'Failed to start checkout. Please try again.'
+      );
     }
   }
   
@@ -385,11 +443,8 @@ export class PaywallManager {
   
   /**
    * Listen for payment success
-   * TODO: Implement payment success listener
    */
-  // TODO: Call this when payment is initiated
-  // @ts-ignore - Will be used for payment success handling
-  private _listenForPaymentSuccess(): void {
+  private listenForPaymentSuccess(): void {
     let attempts = 0;
     const maxAttempts = 60; // 2 minutes
     
@@ -398,12 +453,17 @@ export class PaywallManager {
       
       if (attempts >= maxAttempts) {
         clearInterval(checkInterval);
+        logger.info('Payment success check timed out');
         return;
       }
       
+      // Check if the license has been updated
+      const oldPlan = this.license?.plan;
       const isValid = await this.validateLicense();
-      if (isValid && this.license?.plan !== 'free') {
+      
+      if (isValid && this.license?.plan !== 'free' && this.license?.plan !== oldPlan) {
         clearInterval(checkInterval);
+        logger.info('Payment success detected! New plan:', this.license?.plan);
         
         // Show success message
         const { showSuccessToast } = await import('../../ui/components/feedback/toast');
@@ -453,6 +513,20 @@ export class PaywallManager {
   }
   
   /**
+   * Set license info after purchase
+   */
+  async setLicenseInfo(info: { licenseKey: string; authToken: string; email: string }): Promise<void> {
+    this.authToken = info.authToken;
+    this.user = { id: info.licenseKey, email: info.email };
+    
+    await chrome.storage.local.set({
+      licenseKey: info.licenseKey,
+      authToken: info.authToken,
+      userEmail: info.email
+    });
+  }
+  
+  /**
    * Logout user
    */
   async logout(): Promise<void> {
@@ -461,7 +535,7 @@ export class PaywallManager {
     this.authToken = null;
     this.cache.validationResult = false;
     
-    await chrome.storage.local.remove(['authToken', 'user', 'license']);
+    await chrome.storage.local.remove(['authToken', 'licenseKey', 'userEmail', 'license', 'deviceId']);
     window.location.reload();
   }
 }

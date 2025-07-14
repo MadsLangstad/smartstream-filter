@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Stripe Integration - SmartStream Filter</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0a;
+      color: #fff;
+      padding: 40px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    h1 {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 30px;
+    }
+    
+    .info-box {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .info-box h3 {
+      color: #667eea;
+      margin-top: 0;
+    }
+    
+    .price-ids {
+      background: #2a2a2a;
+      padding: 15px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    
+    .plans {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .plan {
+      background: #1a1a1a;
+      border: 2px solid #333;
+      border-radius: 16px;
+      padding: 30px;
+      text-align: center;
+      transition: all 0.3s;
+    }
+    
+    .plan:hover {
+      border-color: #667eea;
+      transform: translateY(-4px);
+    }
+    
+    .plan h2 {
+      margin: 0 0 10px;
+    }
+    
+    .plan .price {
+      font-size: 36px;
+      font-weight: 700;
+      color: #667eea;
+      margin: 20px 0;
+    }
+    
+    .plan .price-id {
+      font-size: 12px;
+      color: #666;
+      font-family: monospace;
+      word-break: break-all;
+      margin: 10px 0;
+    }
+    
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px -10px rgba(102, 126, 234, 0.5);
+    }
+    
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .test-cards {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    
+    .test-cards ul {
+      margin: 10px 0;
+      padding-left: 20px;
+    }
+    
+    .test-cards code {
+      background: #2a2a2a;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    
+    .status {
+      padding: 10px;
+      border-radius: 8px;
+      margin: 20px 0;
+      text-align: center;
+      display: none;
+    }
+    
+    .status.success {
+      background: rgba(34, 197, 94, 0.2);
+      border: 1px solid #22c55e;
+      color: #22c55e;
+      display: block;
+    }
+    
+    .status.error {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid #ef4444;
+      color: #ef4444;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h1>Test Stripe Integration</h1>
+  
+  <div class="info-box">
+    <h3>Current Configuration</h3>
+    <div class="price-ids">
+      <strong>Public Key:</strong> pk_test_51RkoKw...007HCTSAXb<br>
+      <strong>Basic Price ID:</strong> price_1Rkp972cQP8jviMwl7aI5eIA<br>
+      <strong>Pro Price ID:</strong> price_1RkpDm2cQP8jviMw0QFfs7SJ<br>
+      <strong>Lifetime Price ID:</strong> price_1RkpGU2cQP8jviMwY3OIKyt6
+    </div>
+  </div>
+  
+  <div class="plans">
+    <div class="plan">
+      <h2>Basic Plan</h2>
+      <div class="price">$4.99/mo</div>
+      <div class="price-id">price_1Rkp972cQP8jviMwl7aI5eIA</div>
+      <button onclick="testCheckout('basic')">Test Basic Checkout</button>
+    </div>
+    
+    <div class="plan">
+      <h2>Pro Plan</h2>
+      <div class="price">$9.99/mo</div>
+      <div class="price-id">price_1RkpDm2cQP8jviMw0QFfs7SJ</div>
+      <button onclick="testCheckout('pro')">Test Pro Checkout</button>
+    </div>
+    
+    <div class="plan">
+      <h2>Lifetime Plan</h2>
+      <div class="price">$199</div>
+      <div class="price-id">price_1RkpGU2cQP8jviMwY3OIKyt6</div>
+      <button onclick="testCheckout('lifetime')">Test Lifetime Checkout</button>
+    </div>
+  </div>
+  
+  <div id="status" class="status"></div>
+  
+  <div class="test-cards">
+    <h3>Test Cards</h3>
+    <ul>
+      <li>Success: <code>4242 4242 4242 4242</code></li>
+      <li>Decline: <code>4000 0000 0000 0002</code></li>
+      <li>3D Secure: <code>4000 0000 0000 3220</code></li>
+      <li>Insufficient funds: <code>4000 0000 0000 9995</code></li>
+    </ul>
+    <p><strong>Note:</strong> Use any future date for expiry, any 3 digits for CVC, and any 5 digits for ZIP.</p>
+  </div>
+  
+  <script type="module">
+    // Import Stripe configuration
+    import { STRIPE_CONFIG } from './src/config/stripe.config.ts';
+    import { StripeService } from './src/services/stripe/stripe-service.ts';
+    
+    window.testCheckout = async function(planId) {
+      const statusEl = document.getElementById('status');
+      statusEl.className = 'status';
+      statusEl.textContent = 'Creating checkout session...';
+      statusEl.style.display = 'block';
+      
+      try {
+        const stripeService = StripeService.getInstance();
+        const result = await stripeService.createCheckoutSession({
+          planId: planId,
+          email: 'test@example.com',
+          userId: 'test-user-123',
+          successUrl: window.location.origin + '/test-stripe-success.html',
+          cancelUrl: window.location.href
+        });
+        
+        if (result.success && result.data) {
+          statusEl.className = 'status success';
+          statusEl.textContent = 'Checkout session created! Redirecting...';
+          
+          // In production, this would redirect to Stripe Checkout
+          // For testing, we'll just show the URL
+          console.log('Checkout URL:', result.data.url);
+          
+          // Simulate redirect after 2 seconds
+          setTimeout(() => {
+            if (confirm('In production, this would redirect to:\n\n' + result.data.url + '\n\nOpen in new tab?')) {
+              window.open(result.data.url, '_blank');
+            }
+          }, 1000);
+        } else {
+          throw new Error(result.error?.message || 'Failed to create checkout session');
+        }
+      } catch (error) {
+        statusEl.className = 'status error';
+        statusEl.textContent = 'Error: ' + error.message;
+        console.error('Checkout error:', error);
+      }
+    };
+    
+    // Display configuration
+    console.log('Stripe Config:', STRIPE_CONFIG);
+  </script>
+</body>
+</html>

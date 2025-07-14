@@ -14,7 +14,11 @@ export function showInfoToast(message: string): void {
   showToast(message, 'info');
 }
 
-function showToast(message: string, type: 'success' | 'error' | 'info'): void {
+export function showWarningToast(message: string): void {
+  showToast(message, 'warning');
+}
+
+function showToast(message: string, type: 'success' | 'error' | 'info' | 'warning'): void {
   // Remove existing toasts
   document.querySelectorAll('.ssf-toast').forEach(t => t.remove());
   
@@ -32,6 +36,11 @@ function showToast(message: string, type: 'success' | 'error' | 'info'): void {
     info: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
       <circle cx="12" cy="12" r="10" stroke-width="2"/>
       <path d="M12 16v-4M12 8h.01" stroke-width="2" stroke-linecap="round"/>
+    </svg>`,
+    warning: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke-width="2"/>
+      <line x1="12" y1="9" x2="12" y2="13" stroke-width="2"/>
+      <line x1="12" y1="17" x2="12.01" y2="17" stroke-width="2"/>
     </svg>`
   };
   
@@ -136,6 +145,17 @@ function addToastStyles(): void {
     
     .ssf-toast-info .ssf-toast-icon {
       color: #3b82f6;
+    }
+    
+    .ssf-toast-warning {
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      background: linear-gradient(135deg, 
+        rgba(245, 158, 11, 0.1) 0%, 
+        rgba(217, 119, 6, 0.1) 100%);
+    }
+    
+    .ssf-toast-warning .ssf-toast-icon {
+      color: #f59e0b;
     }
     
     .ssf-toast-message {

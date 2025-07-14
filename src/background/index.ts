@@ -53,6 +53,19 @@ chrome.runtime.onInstalled.addListener((details) => {
   });
 });
 
+// Listen for tab updates to detect Stripe payment success
+chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab.url) {
+    // Check if this is a payment success redirect
+    if (tab.url.includes('smartstream_success=true')) {
+      // Import and handle payment redirect
+      const { StripeService } = await import('../services/stripe/stripe-service');
+      const stripeService = StripeService.getInstance();
+      await stripeService.handlePaymentRedirect();
+    }
+  }
+});
+
 chrome.runtime.onMessage.addListener((message: MessageType, _sender, sendResponse): boolean | void => {
   switch (message.type) {
     case 'GET_SETTINGS':

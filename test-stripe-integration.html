@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartStream Filter - Stripe Integration Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen py-12">
+    <div class="max-w-4xl mx-auto px-4">
+        <h1 class="text-3xl font-bold text-gray-900 mb-8">SmartStream Filter - Stripe Integration Test</h1>
+        
+        <!-- Test Status -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Test Status</h2>
+            <div id="status" class="space-y-2">
+                <p class="text-gray-600">Ready to test...</p>
+            </div>
+        </div>
+
+        <!-- Test Controls -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Test Controls</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button onclick="testCheckout('basic')" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                    Test Basic Plan Checkout
+                </button>
+                <button onclick="testCheckout('pro')" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">
+                    Test Pro Plan Checkout
+                </button>
+                <button onclick="testCheckout('lifetime')" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                    Test Lifetime Plan Checkout
+                </button>
+                <button onclick="testValidation()" class="bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600">
+                    Test License Validation
+                </button>
+                <button onclick="testPortal()" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">
+                    Test Customer Portal
+                </button>
+                <button onclick="clearData()" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+                    Clear Test Data
+                </button>
+            </div>
+        </div>
+
+        <!-- Server Configuration -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Server Configuration</h2>
+            <div class="space-y-2">
+                <label class="block">
+                    <span class="text-gray-700">API Base URL:</span>
+                    <input id="apiUrl" type="text" value="http://localhost:3000/api/v1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                </label>
+                <label class="block">
+                    <span class="text-gray-700">Test Email:</span>
+                    <input id="testEmail" type="email" value="test@example.com" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                </label>
+            </div>
+        </div>
+
+        <!-- Test Results -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4">Test Results</h2>
+            <div id="results" class="space-y-2 font-mono text-sm">
+                <p class="text-gray-600">No tests run yet...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Helper to log results
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const status = document.getElementById('status');
+            const time = new Date().toLocaleTimeString();
+            
+            const colors = {
+                info: 'text-gray-700',
+                success: 'text-green-600',
+                error: 'text-red-600',
+                warning: 'text-yellow-600'
+            };
+            
+            results.innerHTML = `<div class="${colors[type]}">[${time}] ${message}</div>` + results.innerHTML;
+            status.innerHTML = `<p class="${colors[type]}">${message}</p>`;
+        }
+
+        // Get test data from localStorage
+        function getTestData() {
+            return {
+                authToken: localStorage.getItem('test_authToken'),
+                licenseKey: localStorage.getItem('test_licenseKey'),
+                sessionId: localStorage.getItem('test_sessionId')
+            };
+        }
+
+        // Save test data
+        function saveTestData(data) {
+            Object.entries(data).forEach(([key, value]) => {
+                if (value) localStorage.setItem(`test_${key}`, value);
+            });
+        }
+
+        // Test checkout session creation
+        async function testCheckout(plan) {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const email = document.getElementById('testEmail').value;
+            
+            log(`Testing ${plan} plan checkout...`);
+            
+            try {
+                const response = await fetch(`${apiUrl}/stripe/checkout-session`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        priceId: getPriceId(plan),
+                        mode: plan === 'lifetime' ? 'payment' : 'subscription',
+                        successUrl: window.location.href + '?success=true',
+                        cancelUrl: window.location.href,
+                        customerEmail: email,
+                        metadata: {
+                            planId: plan,
+                            testMode: 'true'
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                log(`✓ Checkout session created: ${data.sessionId}`, 'success');
+                log(`Checkout URL: ${data.url}`, 'info');
+                
+                saveTestData({ sessionId: data.sessionId });
+                
+                // Optionally open checkout
+                if (confirm('Open Stripe Checkout in new tab?')) {
+                    window.open(data.url, '_blank');
+                }
+            } catch (error) {
+                log(`✗ Checkout failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Test session verification
+        async function testValidation() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const data = getTestData();
+            
+            if (!data.licenseKey || !data.authToken) {
+                log('No license key or auth token found. Complete a checkout first.', 'warning');
+                return;
+            }
+            
+            log('Testing license validation...');
+            
+            try {
+                const response = await fetch(`${apiUrl}/licenses/validate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        licenseKey: data.licenseKey,
+                        authToken: data.authToken,
+                        deviceId: 'test-device-' + Date.now()
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (response.ok && result.valid) {
+                    log('✓ License is valid!', 'success');
+                    log(`License details: ${JSON.stringify(result.license, null, 2)}`, 'info');
+                } else {
+                    log(`✗ License validation failed: ${result.error || 'Invalid'}`, 'error');
+                }
+            } catch (error) {
+                log(`✗ Validation error: ${error.message}`, 'error');
+            }
+        }
+
+        // Test customer portal
+        async function testPortal() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const data = getTestData();
+            
+            if (!data.authToken) {
+                log('No auth token found. Complete a checkout first.', 'warning');
+                return;
+            }
+            
+            log('Testing customer portal...');
+            
+            try {
+                const response = await fetch(`${apiUrl}/stripe/portal-session`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${data.authToken}`
+                    },
+                    body: JSON.stringify({
+                        returnUrl: window.location.href
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || `HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+                log('✓ Portal session created!', 'success');
+                log(`Portal URL: ${result.url}`, 'info');
+                
+                if (confirm('Open Customer Portal in new tab?')) {
+                    window.open(result.url, '_blank');
+                }
+            } catch (error) {
+                log(`✗ Portal error: ${error.message}`, 'error');
+            }
+        }
+
+        // Clear test data
+        function clearData() {
+            localStorage.removeItem('test_authToken');
+            localStorage.removeItem('test_licenseKey');
+            localStorage.removeItem('test_sessionId');
+            log('Test data cleared', 'success');
+        }
+
+        // Get price ID for plan
+        function getPriceId(plan) {
+            const priceIds = {
+                basic: 'price_basic_monthly',
+                pro: 'price_pro_monthly',
+                lifetime: 'price_lifetime'
+            };
+            return priceIds[plan];
+        }
+
+        // Check for success redirect
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('success') === 'true') {
+            log('Payment successful! Checking session...', 'success');
+            
+            // Simulate getting session ID from URL (in real app, this would be passed)
+            const sessionId = localStorage.getItem('test_sessionId');
+            if (sessionId) {
+                // Test verification
+                setTimeout(async () => {
+                    const apiUrl = document.getElementById('apiUrl').value;
+                    try {
+                        const response = await fetch(`${apiUrl}/stripe/verify-session/${sessionId}`);
+                        const data = await response.json();
+                        
+                        if (data.paid && data.licenseKey) {
+                            log('✓ Payment verified!', 'success');
+                            log(`License Key: ${data.licenseKey}`, 'info');
+                            log(`Auth Token: ${data.authToken}`, 'info');
+                            
+                            saveTestData({
+                                licenseKey: data.licenseKey,
+                                authToken: data.authToken
+                            });
+                        }
+                    } catch (error) {
+                        log(`✗ Verification error: ${error.message}`, 'error');
+                    }
+                }, 1000);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -233,8 +233,28 @@ class PopupController {
       const accountBtn = document.getElementById('account-btn');
       accountBtn?.addEventListener('click', async () => {
         if (isPremium) {
-          // Show account management
-          alert('Account management coming soon!');
+          // Open Stripe Customer Portal
+          try {
+            const { StripeService } = await import('../services/stripe/stripe-service');
+            const stripeService = StripeService.getInstance();
+            const result = await stripeService.createPortalSession();
+            
+            if (result.success && result.data?.url) {
+              await chrome.tabs.create({ url: result.data.url });
+              window.close();
+            } else {
+              // Fallback to account modal
+              const { showAccountModal } = await import('../ui/components/modals/account-modal');
+              await showAccountModal({ user, license });
+              window.close();
+            }
+          } catch (error) {
+            logger.error('Failed to open customer portal:', error);
+            // Fallback to account modal
+            const { showAccountModal } = await import('../ui/components/modals/account-modal');
+            await showAccountModal({ user, license });
+            window.close();
+          }
         } else {
           // Trigger paywall
           const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -279,43 +299,26 @@ class PopupController {
       upgradeSection.remove();
     }
 
-    // Show upgrade section only if not premium AND not logged in
-    if (!isPremium && !user) {
+    // Show upgrade section only if not premium
+    if (!isPremium) {
       const newUpgradeSection = document.createElement('div');
       newUpgradeSection.id = 'upgrade-section';
-      newUpgradeSection.style.cssText = `
-        padding: 15px;
-        margin: 15px;
-        background: rgba(255, 215, 0, 0.1);
-        border: 1px solid rgba(255, 215, 0, 0.3);
-        border-radius: 8px;
-        text-align: center;
-      `;
+      newUpgradeSection.className = 'premium-section';
       newUpgradeSection.innerHTML = `
-        <h3 style="color: #ffd700; margin: 0 0 10px 0; font-size: 14px;">Unlock Premium Features</h3>
-        <ul style="text-align: left; margin: 10px 0; padding-left: 20px; font-size: 12px; color: #aaa;">
-          <li>Advanced filters (keywords, channels)</li>
-          <li>Custom presets</li>
-          <li>Usage analytics</li>
-          <li>Spotify & Netflix support (coming soon)</li>
-        </ul>
-        <button id="upgrade-btn" style="
-          background: #ffd700;
-          color: #000;
-          border: none;
-          padding: 8px 20px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-weight: 600;
-          font-size: 12px;
-        ">Upgrade to Premium</button>
+        <div class="premium-content">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px; color: #ffd700;">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+          </svg>
+          <span class="premium-text">Premium Features</span>
+        </div>
+        <button id="unlock-btn" class="unlock-btn">Unlock</button>
       `;
       
       const footer = document.querySelector('.footer');
       if (footer) {
         footer.parentElement?.insertBefore(newUpgradeSection, footer);
         
-        document.getElementById('upgrade-btn')?.addEventListener('click', async () => {
+        document.getElementById('unlock-btn')?.addEventListener('click', async () => {
           // Close popup and trigger paywall in main tab
           const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
           if (tabs[0]?.id) {

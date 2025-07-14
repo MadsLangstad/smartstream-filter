@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Success - SmartStream Filter</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0a;
+      color: #fff;
+      padding: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    
+    .success-container {
+      text-align: center;
+      max-width: 600px;
+    }
+    
+    .success-icon {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 30px;
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: scaleIn 0.5s ease-out;
+    }
+    
+    @keyframes scaleIn {
+      from {
+        transform: scale(0);
+        opacity: 0;
+      }
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+    
+    .success-icon svg {
+      width: 60px;
+      height: 60px;
+      color: white;
+    }
+    
+    h1 {
+      font-size: 36px;
+      margin: 0 0 20px;
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    p {
+      font-size: 18px;
+      color: #aaa;
+      line-height: 1.6;
+      margin: 0 0 30px;
+    }
+    
+    .details {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 30px 0;
+      text-align: left;
+    }
+    
+    .details h3 {
+      color: #667eea;
+      margin: 0 0 15px;
+    }
+    
+    .details pre {
+      background: #2a2a2a;
+      padding: 15px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 14px;
+      line-height: 1.6;
+      margin: 0;
+    }
+    
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px -10px rgba(102, 126, 234, 0.5);
+    }
+    
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+      margin-left: 10px;
+      vertical-align: middle;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="success-container">
+    <div class="success-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M20 6L9 17l-5-5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    
+    <h1>Payment Successful!</h1>
+    <p>Thank you for upgrading to SmartStream Filter Premium. Your license is being activated...</p>
+    
+    <div class="details">
+      <h3>Payment Details</h3>
+      <pre id="payment-details">Loading payment information...</pre>
+    </div>
+    
+    <button onclick="goToYouTube()">
+      Go to YouTube
+      <span id="loading" class="loading" style="display: none;"></span>
+    </button>
+  </div>
+  
+  <script>
+    // Parse URL parameters
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get('session_id');
+    const plan = params.get('plan');
+    
+    // Display payment details
+    const detailsEl = document.getElementById('payment-details');
+    const details = {
+      'Session ID': sessionId || 'Not provided',
+      'Plan': plan || 'Not specified',
+      'Success': params.get('smartstream_success') || 'true',
+      'Timestamp': new Date().toLocaleString()
+    };
+    
+    detailsEl.textContent = JSON.stringify(details, null, 2);
+    
+    // In production, this would verify the payment and activate the license
+    console.log('Payment success page loaded with:', details);
+    
+    // Simulate license activation
+    setTimeout(() => {
+      // In production, this would be handled by the extension's background script
+      console.log('License activated!');
+    }, 2000);
+    
+    function goToYouTube() {
+      const loadingEl = document.getElementById('loading');
+      loadingEl.style.display = 'inline-block';
+      
+      // Redirect to YouTube with success parameters
+      const redirectUrl = new URL('https://www.youtube.com');
+      redirectUrl.searchParams.set('smartstream_success', 'true');
+      redirectUrl.searchParams.set('plan', plan || 'unknown');
+      if (sessionId) {
+        redirectUrl.searchParams.set('session_id', sessionId);
+      }
+      
+      setTimeout(() => {
+        window.location.href = redirectUrl.toString();
+      }, 1000);
+    }
+  </script>
+</body>
+</html>

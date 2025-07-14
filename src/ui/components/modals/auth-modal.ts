@@ -13,6 +13,7 @@ export interface AuthModalResult {
   token?: string;
   user?: User;
   license?: License;
+  email?: string;
 }
 
 export async function showAuthModal(): Promise<AuthModalResult> {
@@ -369,15 +370,16 @@ function setupAuthHandlers(modal: HTMLElement, onClose: (result: AuthModalResult
             name: 'Demo User'
           },
           license: {
-            id: 'demo-license',
-            userId: 'demo-user',
+            licenseKey: 'demo-license',
+            email: 'demo@example.com',
+            productId: 'demo',
             plan: 'pro',
             status: 'active',
             features: ['advanced_filters', 'analytics'],
             validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-            deviceLimit: 5,
-            activatedDevices: []
-          }
+            devices: 1
+          },
+          email: 'demo@example.com'
         });
       }, 1500);
     };
