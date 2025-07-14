@@ -229,36 +229,96 @@
       
       .stat-card {
         background: #272727;
-        padding: 10px;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        padding: 14px;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        text-align: center;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      
+      .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
       }
       
       .stat-card.videos {
-        background: #1e3a8a;
+        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
       }
       
       .stat-card.time {
-        background: #14532d;
+        background: linear-gradient(135deg, #14532d 0%, #059669 100%);
       }
       
       .stat-value {
-        font-size: 24px;
+        font-size: 26px;
         font-weight: 700;
         margin-bottom: 4px;
-      }
-      
-      .stat-card.videos .stat-value {
-        color: #2563eb;
-      }
-      
-      .stat-card.time .stat-value {
-        color: #059669;
+        color: #fff;
       }
       
       .stat-label {
         font-size: 11px;
-        color: #aaaaaa;
+        color: rgba(255, 255, 255, 0.8);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      
+      /* User Section */
+      .user-section {
+        background: #272727;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 12px;
+      }
+      
+      .user-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      
+      .user-avatar {
+        width: 40px;
+        height: 40px;
+        background: #3f3f3f;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+      }
+      
+      .user-details {
+        flex: 1;
+      }
+      
+      .user-email {
+        font-size: 14px;
+        color: #f1f1f1;
+        font-weight: 500;
+      }
+      
+      .user-plan {
+        font-size: 12px;
+        color: #888;
+        text-transform: capitalize;
+      }
+      
+      .account-btn {
+        width: 100%;
+        padding: 8px;
+        background: #3f3f3f;
+        border: none;
+        border-radius: 8px;
+        color: #f1f1f1;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      
+      .account-btn:hover {
+        background: #4f4f4f;
       }
       
       /* Premium Section */
@@ -294,6 +354,23 @@
         font-size: 12px;
         color: #ddd6fe;
         font-weight: 500;
+      }
+      
+      .unlock-btn {
+        padding: 6px 16px;
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 6px;
+        color: white;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      
+      .unlock-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-1px);
       }
       
       /* Footer */
@@ -345,6 +422,94 @@
           opacity: 0.6;
           transform: scale(1.2);
         }
+      }
+      
+      /* Premium Features Section */
+      .premium-features-section {
+        background: linear-gradient(135deg, #4c1d95 0%, #831843 100%);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 12px;
+      }
+      
+      .feature-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #e9d5ff;
+        margin-bottom: 16px;
+      }
+      
+      .feature-header svg {
+        width: 20px;
+        height: 20px;
+        color: #e9d5ff;
+      }
+      
+      .premium-feature {
+        margin-bottom: 16px;
+      }
+      
+      .premium-feature:last-child {
+        margin-bottom: 0;
+      }
+      
+      .premium-feature label {
+        display: block;
+        font-size: 12px;
+        color: #e9d5ff;
+        margin-bottom: 6px;
+        font-weight: 500;
+      }
+      
+      .premium-feature input {
+        width: 100%;
+        padding: 8px 12px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 6px;
+        color: #fff;
+        font-size: 12px;
+        transition: all 0.2s;
+      }
+      
+      .premium-feature input::placeholder {
+        color: rgba(255, 255, 255, 0.5);
+      }
+      
+      .premium-feature input:focus {
+        outline: none;
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.3);
+      }
+      
+      .preset-buttons {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+      }
+      
+      .preset-btn {
+        padding: 8px 4px;
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 6px;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      
+      .preset-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-1px);
+      }
+      
+      .preset-btn:active {
+        transform: translateY(0);
       }
     </style>
   </head>
@@ -411,15 +576,49 @@
           </div>
         </div>
         
-        <!-- Premium Section -->
-        <div class="premium-section">
-          <div class="premium-content">
-            <svg fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-            </svg>
-            <span class="premium-text">Premium Features</span>
+        <!-- User Account Section (hidden by default) -->
+        <div id="user-section" class="user-section" style="display: none;">
+          <div class="user-info">
+            <div class="user-avatar">👤</div>
+            <div class="user-details">
+              <div class="user-email"></div>
+              <div class="user-plan"></div>
+            </div>
           </div>
-          <span class="coming-soon">Coming Soon</span>
+          <button id="account-btn" class="account-btn">Manage Account</button>
+        </div>
+        
+        <!-- Premium Features Section (hidden by default, shown for premium users) -->
+        <div id="premium-features" class="premium-features-section" style="display: none;">
+          <div class="feature-header">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+            </svg>
+            <span>Premium Features</span>
+          </div>
+          
+          <!-- Keyword Filter -->
+          <div class="premium-feature">
+            <label>Filter by Keywords</label>
+            <input type="text" id="keyword-filter" placeholder="e.g. tutorial, review (comma separated)" />
+          </div>
+          
+          <!-- Channel Filter -->
+          <div class="premium-feature">
+            <label>Block Channels</label>
+            <input type="text" id="channel-filter" placeholder="Channel names (comma separated)" />
+          </div>
+          
+          <!-- Custom Presets -->
+          <div class="premium-feature">
+            <label>Quick Presets</label>
+            <div class="preset-buttons">
+              <button class="preset-btn" data-min="0" data-max="5">Shorts</button>
+              <button class="preset-btn" data-min="5" data-max="15">Quick</button>
+              <button class="preset-btn" data-min="10" data-max="30">Medium</button>
+              <button class="preset-btn" data-min="30" data-max="120">Long</button>
+            </div>
+          </div>
         </div>
       </div>
       

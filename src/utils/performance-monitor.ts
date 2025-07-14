@@ -2,6 +2,10 @@
  * Performance monitoring and benchmarking
  */
 
+import { createLogger } from './logger';
+
+const logger = createLogger('Performance', { enableInProduction: true });
+
 interface PerformanceMetrics {
   filterTime: number;
   videosProcessed: number;
@@ -30,7 +34,7 @@ export class PerformanceMonitor {
       const result = await fn();
       const duration = performance.now() - start;
       
-      console.log(`[Performance] ${name}: ${duration.toFixed(2)}ms`);
+      logger.performance(name, duration);
       
       if (name === 'filterVideos') {
         this.metrics.filterTime = duration;
@@ -38,7 +42,7 @@ export class PerformanceMonitor {
       
       return result;
     } catch (error) {
-      console.error(`[Performance] ${name} failed:`, error);
+      logger.error(`${name} failed:`, error);
       throw error;
     }
   }
@@ -81,13 +85,13 @@ export class PerformanceMonitor {
    */
   logReport() {
     const metrics = this.getMetrics();
-    console.group('[Performance Report]');
-    console.log(`Filter Time: ${metrics.filterTime.toFixed(2)}ms`);
-    console.log(`Videos Processed: ${metrics.videosProcessed}`);
-    console.log(`Cache Hit Rate: ${metrics.cacheHitRate.toFixed(1)}%`);
-    console.log(`Memory Used: ${(metrics.memoryUsed / 1024 / 1024).toFixed(2)}MB`);
-    console.log(`Avg Time per Video: ${(metrics.filterTime / metrics.videosProcessed).toFixed(2)}ms`);
-    console.groupEnd();
+    logger.group('Performance Report');
+    logger.info(`Filter Time: ${metrics.filterTime.toFixed(2)}ms`);
+    logger.info(`Videos Processed: ${metrics.videosProcessed}`);
+    logger.info(`Cache Hit Rate: ${metrics.cacheHitRate.toFixed(1)}%`);
+    logger.info(`Memory Used: ${(metrics.memoryUsed / 1024 / 1024).toFixed(2)}MB`);
+    logger.info(`Avg Time per Video: ${(metrics.filterTime / metrics.videosProcessed).toFixed(2)}ms`);
+    logger.groupEnd();
   }
   
   /**

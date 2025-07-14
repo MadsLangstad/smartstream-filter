@@ -25,20 +25,35 @@ chrome.runtime.onInstalled.addListener((details) => {
     });
   }
   
-  // Check subscription status on install/update
-  paymentService.checkSubscriptionStatus();
+  // DEMO: Set up demo premium user
+  chrome.storage.local.get(['authToken'], (result) => {
+    if (!result.authToken) {
+      // Set demo premium data
+      chrome.storage.local.set({
+        authToken: 'demo-token-premium',
+        user: {
+          id: 'demo-user-1',
+          email: 'demo@example.com',
+          name: 'Demo User'
+        },
+        license: {
+          id: 'demo-license-1',
+          userId: 'demo-user-1',
+          plan: 'pro',
+          status: 'active',
+          features: ['advanced_filters', 'keyword_filters', 'channel_filters', 'analytics'],
+          validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+          deviceLimit: 5,
+          activatedDevices: ['demo-device-1']
+        }
+      }, () => {
+        console.log('Demo premium user initialized');
+      });
+    }
+  });
 });
 
-// Check subscription status daily
-chrome.alarms.create('checkSubscription', { periodInMinutes: 60 * 24 });
-
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === 'checkSubscription') {
-    paymentService.checkSubscriptionStatus();
-  }
-});
-
-chrome.runtime.onMessage.addListener((message: MessageType, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: MessageType, _sender, sendResponse): boolean | void => {
   switch (message.type) {
     case 'GET_SETTINGS':
       chrome.storage.local.get(['settings'], (result: { settings?: FilterSettings }) => {
@@ -50,10 +65,21 @@ chrome.runtime.onMessage.addListener((message: MessageType, _sender, sendRespons
       chrome.storage.local.get(['settings'], (result: { settings?: FilterSettings }) => {
         const newSettings = { ...result.settings || DEFAULT_SETTINGS, ...message.settings };
         chrome.storage.local.set({ settings: newSettings }, () => {
+          // Try to notify YouTube tabs, but don't worry if they can't receive
           chrome.tabs.query({ url: ['*://www.youtube.com/*', '*://youtube.com/*'] }, (tabs) => {
             tabs.forEach(tab => {
               if (tab.id) {
-                chrome.tabs.sendMessage(tab.id, { type: 'SETTINGS_UPDATED', settings: newSettings });
+                chrome.tabs.sendMessage(
+                  tab.id, 
+                  { type: 'SETTINGS_UPDATED', settings: newSettings },
+                  () => {
+                    // Ignore errors - tab might not have content script loaded
+                    if (chrome.runtime.lastError) {
+                      // Expected when tab doesn't have our content script
+                      console.debug('Tab not ready:', chrome.runtime.lastError.message);
+                    }
+                  }
+                );
               }
             });
           });
@@ -61,70 +87,38 @@ chrome.runtime.onMessage.addListener((message: MessageType, _sender, sendRespons
         });
       });
       return true;
-
-    case 'CHECK_PREMIUM':
-      paymentService.checkSubscriptionStatus().then((isPremium) => {
-        sendResponse({ isPremium });
-      });
+      
+    case 'SHOW_PAYWALL':
+      // For now, just inject a script to show the paywall
+      // In content scripts, we can't use dynamic imports, so we'll handle it differently
+      if (_sender.tab?.id) {
+        chrome.tabs.sendMessage(_sender.tab.id, {
+          type: 'DISPLAY_PAYWALL',
+          feature: message.feature
+        });
+      }
+      sendResponse({ success: true });
       return true;
-
-    case 'OPEN_CHECKOUT':
-      paymentService.createCheckout(message.email).then((url) => {
-        chrome.tabs.create({ url });
-        sendResponse({ success: true });
-      }).catch((error) => {
-        sendResponse({ success: false, error: error.message });
-      });
-      return true;
-
-    case 'PREMIUM_ACTIVATED':
-      // Notify all tabs about premium activation
-      chrome.tabs.query({}, (tabs) => {
+      
+    case 'UPDATE_PREMIUM_FILTERS':
+      // Broadcast premium filter updates to all YouTube tabs
+      chrome.tabs.query({ url: ['*://www.youtube.com/*', '*://youtube.com/*'] }, (tabs) => {
         tabs.forEach(tab => {
           if (tab.id) {
-            chrome.tabs.sendMessage(tab.id, { type: 'PREMIUM_STATUS_CHANGED', isPremium: true });
+            chrome.tabs.sendMessage(
+              tab.id, 
+              { type: 'UPDATE_PREMIUM_FILTERS', filters: message.filters },
+              () => {
+                // Ignore errors
+                if (chrome.runtime.lastError) {
+                  console.debug('Tab not ready:', chrome.runtime.lastError.message);
+                }
+              }
+            );
           }
         });
       });
-      break;
-
-    case 'PREMIUM_DEACTIVATED':
-      // Notify all tabs about premium deactivation
-      chrome.tabs.query({}, (tabs) => {
-        tabs.forEach(tab => {
-          if (tab.id) {
-            chrome.tabs.sendMessage(tab.id, { type: 'PREMIUM_STATUS_CHANGED', isPremium: false });
-          }
-        });
-      });
-      break;
+      sendResponse({ success: true });
+      return true;
   }
 });
-
-// Handle web navigation to detect successful payment
-chrome.webNavigation.onCompleted.addListener(async (details) => {
-  if (details.url.includes('smartstreamfilter.com/success')) {
-    // Extract session ID from URL
-    const url = new URL(details.url);
-    const sessionId = url.searchParams.get('session_id');
-    
-    if (sessionId) {
-      await paymentService.handlePaymentSuccess(sessionId);
-      
-      // Close the success tab and show thank you
-      chrome.tabs.remove(details.tabId);
-      
-      // Create a notification
-      chrome.notifications.create({
-        type: 'basic',
-        iconUrl: 'icons/ssf.png',
-        title: 'Welcome to SmartStream Premium!',
-        message: 'Your premium features are now active. Enjoy!'
-      });
-    }
-  }
-}, {
-  url: [{ hostContains: 'smartstreamfilter.com' }]
-});
-
-export {};
