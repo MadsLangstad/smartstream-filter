@@ -1,3 +1,7 @@
+import { VideoCache } from './video-cache';
+import { OptimizedObserver } from './optimized-observer';
+import { PerformanceMonitor } from '../utils/performance-monitor';
+
 interface FilterSettings {
   minDuration: number;
   maxDuration: number;
@@ -15,8 +19,17 @@ class YouTubeHeaderIntegration {
     enabled: true
   };
 
-  private observer: MutationObserver | null = null;
+  private observer: OptimizedObserver | null = null;
+  private videoCache = new VideoCache();
+  private performanceMonitor = new PerformanceMonitor();
   private isPremium: boolean = false;
+  
+  // Performance tracking
+  private stats = {
+    videosShown: 0,
+    videosHidden: 0,
+    totalTimeHidden: 0
+  };
   
   constructor() {
     this.initializeFeatures();
@@ -256,6 +269,22 @@ class YouTubeHeaderIntegration {
       </div>
     `;
 
+    // Add stats display
+    const statsDisplay = document.createElement('div');
+    statsDisplay.id = 'smartstream-stats';
+    statsDisplay.style.cssText = `
+      display: flex;
+      gap: 12px;
+      margin-left: 12px;
+      font-size: 12px;
+      color: var(--yt-spec-text-secondary);
+      font-family: Roboto, Arial, sans-serif;
+    `;
+    statsDisplay.innerHTML = `
+      <span>Videos: 0/0</span>
+      <span>Time saved: 0h 0m</span>
+    `;
+    
     // Add premium indicator if user has premium features
     if (this.isPremium) {
       const premiumBadge = document.createElement('div');
@@ -267,6 +296,7 @@ class YouTubeHeaderIntegration {
     
     container.appendChild(toggle);
     container.appendChild(durationControls);
+    container.appendChild(statsDisplay);
     
     // Insert after voice search button
     targetElement.insertAdjacentElement('afterend', container);
@@ -357,58 +387,70 @@ class YouTubeHeaderIntegration {
     chrome.runtime.sendMessage({ type: 'UPDATE_SETTINGS', settings: update });
   }
 
-  private filterVideos() {
-    if (!this.settings.enabled) {
-      document.querySelectorAll('ytd-video-renderer, ytd-grid-video-renderer, ytd-rich-item-renderer')
-        .forEach(video => {
-          (video as HTMLElement).style.display = '';
-        });
-      return;
-    }
+  private async filterVideos() {
+    await this.performanceMonitor.measure('filterVideos', async () => {
+      if (!this.settings.enabled) {
+        document.querySelectorAll('ytd-video-renderer, ytd-grid-video-renderer, ytd-rich-item-renderer')
+          .forEach(video => {
+            (video as HTMLElement).style.display = '';
+          });
+        return;
+      }
 
-    const videos = document.querySelectorAll('ytd-video-renderer, ytd-grid-video-renderer, ytd-rich-item-renderer');
-    console.log(`[SmartStream] Filtering ${videos.length} videos. Min: ${this.settings.minDuration}m, Max: ${this.settings.maxDuration}m`);
-    
-    let shown = 0;
-    let hidden = 0;
-    
+      const videos = Array.from(document.querySelectorAll('ytd-video-renderer, ytd-grid-video-renderer, ytd-rich-item-renderer'));
+      this.performanceMonitor.recordVideosProcessed(videos.length);
+      
+      this.stats.videosShown = 0;
+      this.stats.videosHidden = 0;
+      this.stats.totalTimeHidden = 0;
+      
+      // Process videos in batches
+      for (let i = 0; i < videos.length; i += 20) {
+        const batch = videos.slice(i, i + 20);
+        requestAnimationFrame(() => this.processBatch(batch));
+      }
+    });
+  }
+
+  private processBatch(videos: Element[]) {
     videos.forEach(video => {
-      const durationElement = video.querySelector('span.ytd-thumbnail-overlay-time-status-renderer, ytd-thumbnail-overlay-time-status-renderer');
-      if (durationElement) {
-        const durationText = durationElement.textContent?.trim() || '';
-        const duration = this.parseDuration(durationText);
-        const durationMinutes = Math.floor(duration / 60);
+      const videoData = this.videoCache.getVideoData(video);
+      
+      if (videoData) {
+        const durationMinutes = Math.floor(videoData.duration / 60);
         const shouldShow = durationMinutes >= this.settings.minDuration && 
                           durationMinutes <= this.settings.maxDuration;
         
         (video as HTMLElement).style.display = shouldShow ? '' : 'none';
         
-        if (shouldShow) shown++;
-        else hidden++;
+        if (shouldShow) {
+          this.stats.videosShown++;
+        } else {
+          this.stats.videosHidden++;
+          this.stats.totalTimeHidden += videoData.duration;
+        }
       }
     });
     
-    console.log(`[SmartStream] Filter results: ${shown} shown, ${hidden} hidden`);
+    // Update UI with stats
+    this.updateStatsDisplay();
   }
 
-  private parseDuration(durationText: string): number {
-    // YouTube sometimes has duplicate timestamps like "20:50\n    20:50"
-    // Take the first one
-    const cleanText = durationText.trim().split('\n')[0].trim();
-    const parts = cleanText.split(':').map(p => parseInt(p));
-    
-    if (parts.length === 3) {
-      // HH:MM:SS format - return in seconds
-      return parts[0] * 3600 + parts[1] * 60 + parts[2];
-    } else if (parts.length === 2) {
-      // MM:SS format - return in seconds
-      return parts[0] * 60 + parts[1];
-    } else if (parts.length === 1) {
-      // Just seconds
-      return parts[0];
+  private updateStatsDisplay() {
+    // Update stats in header if elements exist
+    const statsElement = document.getElementById('smartstream-stats');
+    if (statsElement) {
+      const timeSavedHours = Math.floor(this.stats.totalTimeHidden / 3600);
+      const timeSavedMinutes = Math.floor((this.stats.totalTimeHidden % 3600) / 60);
+      
+      statsElement.innerHTML = `
+        <span>Videos: ${this.stats.videosShown}/${this.stats.videosShown + this.stats.videosHidden}</span>
+        <span>Time saved: ${timeSavedHours}h ${timeSavedMinutes}m</span>
+      `;
     }
-    return 0;
   }
+
+  // Removed - now using VideoCache.parseDuration()
 
   private formatDuration(minutes: number): string {
     if (minutes === 0) return '0m';
@@ -418,40 +460,40 @@ class YouTubeHeaderIntegration {
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   }
   
-  private filterTimeout: ReturnType<typeof setTimeout> | null = null;
-  
   private setupMutationObserver() {
-    this.observer = new MutationObserver((mutations) => {
-      // Only filter if video elements were added
-      const hasVideoChanges = mutations.some(mutation => {
-        return Array.from(mutation.addedNodes).some(node => {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            const element = node as Element;
-            return element.tagName === 'YTD-VIDEO-RENDERER' || 
-                   element.tagName === 'YTD-GRID-VIDEO-RENDERER' ||
-                   element.tagName === 'YTD-RICH-ITEM-RENDERER' ||
-                   element.querySelector('ytd-video-renderer, ytd-grid-video-renderer, ytd-rich-item-renderer');
+    // Use optimized observer
+    this.observer = new OptimizedObserver((videos) => {
+      // Process only new videos
+      videos.forEach(video => {
+        const videoData = this.videoCache.getVideoData(video);
+        
+        if (videoData && this.settings.enabled) {
+          const durationMinutes = Math.floor(videoData.duration / 60);
+          const shouldShow = durationMinutes >= this.settings.minDuration && 
+                            durationMinutes <= this.settings.maxDuration;
+          
+          (video as HTMLElement).style.display = shouldShow ? '' : 'none';
+          
+          if (shouldShow) {
+            this.stats.videosShown++;
+          } else {
+            this.stats.videosHidden++;
+            this.stats.totalTimeHidden += videoData.duration;
           }
-          return false;
-        });
+        }
       });
-
-      if (hasVideoChanges) {
-        // Debounce filtering to avoid too frequent updates
-        if (this.filterTimeout) clearTimeout(this.filterTimeout);
-        this.filterTimeout = setTimeout(() => {
-          this.filterVideos();
-        }, 250);
-      }
+      
+      this.updateStatsDisplay();
+    }, {
+      debounceMs: 100,
+      batchSize: 10
     });
     
     // Start observing when body is available
     const startObserving = () => {
-      const targetNode = document.querySelector('ytd-app') || document.body;
-      this.observer?.observe(targetNode, {
-        childList: true,
-        subtree: true
-      });
+      this.observer?.start();
+      // Start performance monitoring
+      this.performanceMonitor.startMonitoring(30000); // Report every 30s
     };
     
     if (document.body) {

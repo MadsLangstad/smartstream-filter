@@ -19,11 +19,11 @@ export interface UserPlan {
 }
 
 export const FEATURES = {
-  // Free features
+  // Free
   BASIC_DURATION_FILTER: 'basic_duration_filter',
   YOUTUBE_SUPPORT: 'youtube_support',
-  
-  // Premium features
+
+  // Premium
   ADVANCED_FILTERS: 'advanced_filters',
   MULTI_PLATFORM: 'multi_platform',
   CUSTOM_PRESETS: 'custom_presets',
@@ -31,13 +31,31 @@ export const FEATURES = {
   EXPORT_DATA: 'export_data',
   NO_ADS: 'no_ads',
   PRIORITY_SUPPORT: 'priority_support',
-  
-  // Platform-specific premium
+
+  // Platform-specific Premium
   SPOTIFY_SUPPORT: 'spotify_support',
   NETFLIX_SUPPORT: 'netflix_support',
   TWITCH_SUPPORT: 'twitch_support',
-  
-  // Experimental features
+  VIMEO_SUPPORT: 'vimeo_support',
+  TIKTOK_SUPPORT: 'tiktok_support',
+  DISNEY_SUPPORT: 'disney_support',
+  PRIME_SUPPORT: 'prime_support',
+  APPLE_TV_SUPPORT: 'apple_tv_support',
+  CRUNCHYROLL_SUPPORT: 'crunchyroll_support',
+
+  APPLE_MUSIC_SUPPORT: 'apple_music_support',
+  TIDAL_SUPPORT: 'tidal_support',
+  POCKETCASTS_SUPPORT: 'pocketcasts_support',
+  YTMUSIC_SUPPORT: 'ytmusic_support',
+  SOUNDCLOUD_SUPPORT: 'soundcloud_support',
+
+  KHAN_SUPPORT: 'khan_support',
+  COURSERA_SUPPORT: 'coursera_support',
+  UDEMY_SUPPORT: 'udemy_support',
+  SKILLSHARE_SUPPORT: 'skillshare_support',
+  EDX_SUPPORT: 'edx_support',
+
+  // Experimental
   AI_RECOMMENDATIONS: 'ai_recommendations',
   COLLABORATIVE_FILTERS: 'collaborative_filters'
 } as const;
@@ -76,21 +94,21 @@ export class FeatureFlagService {
       {
         id: FEATURES.ADVANCED_FILTERS,
         name: 'Advanced Filters',
-        description: 'Multiple filter criteria, keywords, channels',
+        description: 'Multiple filter criteria, keywords, channels, and more',
         enabled: true,
         premium: true
       },
       {
         id: FEATURES.CUSTOM_PRESETS,
         name: 'Custom Presets',
-        description: 'Save and switch between filter presets',
+        description: 'Save and switch between filter presets easily',
         enabled: true,
         premium: true
       },
       {
         id: FEATURES.ANALYTICS,
         name: 'Usage Analytics',
-        description: 'Track your viewing habits and time saved',
+        description: 'Track your viewing habits and time saved by filtering',
         enabled: true,
         premium: true
       },
@@ -137,7 +155,7 @@ export class FeatureFlagService {
     const flag = this.flags.get(featureId);
     if (!flag || !flag.enabled) return false;
     
-    // Free features are always available
+    // Free features always available
     if (!flag.premium) return true;
     
     // Check if user has access to premium feature
