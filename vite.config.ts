@@ -7,7 +7,7 @@ export default defineConfig({
       input: {
         popup: resolve(__dirname, 'src/popup/index.ts'),
         background: resolve(__dirname, 'src/background/index.ts'),
-        'content-youtube': resolve(__dirname, 'src/content/youtube-header.ts'),
+        'content-youtube': resolve(__dirname, 'src/content/app.ts'),
       },
       output: {
         entryFileNames: '[name].js',
