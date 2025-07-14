@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import path from 'path'
 
+// Special config for content scripts (IIFE format)
 export default defineConfig({
   resolve: {
     alias: {
@@ -13,14 +14,14 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        popup: path.resolve(__dirname, 'src/popup/index.ts'),
-        background: path.resolve(__dirname, 'src/background/index.ts'),
+        'content-youtube': path.resolve(__dirname, 'src/content/youtube-header.ts'),
       },
       output: {
         entryFileNames: '[name].js',
-        chunkFileNames: '[name].js',
-        assetFileNames: '[name].[ext]',
-        format: 'es'
+        format: 'iife',
+        name: 'SmartStreamFilter',
+        // Inline all imports for content scripts
+        inlineDynamicImports: true
       }
     },
     outDir: 'dist',

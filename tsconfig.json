@@ -1,25 +1,90 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "useDefineForClassFields": true,
-    "module": "ESNext",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "skipLibCheck": true,
-
-    /* Bundler mode */
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-
-    /* Linting */
+    // Type Checking
     "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "erasableSyntaxOnly": false,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "useUnknownInCatchVariables": true,
+    "alwaysStrict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "exactOptionalPropertyTypes": false,
+    "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": false,
+    
+    // Modules
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "isolatedModules": true,
+    
+    // Emit
+    "noEmit": true,
+    "sourceMap": true,
+    "removeComments": false,
+    "downlevelIteration": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    
+    // JavaScript Support
+    "allowJs": false,
+    "checkJs": false,
+    
+    // Editor Support
+    "disableSizeLimit": true,
+    
+    // Interop Constraints
+    "forceConsistentCasingInFileNames": true,
+    
+    // Language and Environment
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "types": ["chrome", "vite/client", "node"],
+    
+    // Projects
+    "incremental": true,
+    "composite": false,
+    
+    // Output Formatting
+    "pretty": true,
+    
+    // Completeness
+    "skipLibCheck": true,
+    
+    // Path Mapping
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@utils/*": ["src/utils/*"],
+      "@services/*": ["src/services/*"],
+      "@types/*": ["src/types/*"]
+    }
   },
-  "include": ["src"]
+  "include": [
+    "src/**/*",
+    "src/**/*.ts",
+    "src/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "**/*.spec.ts",
+    "**/*.test.ts"
+  ],
+  "ts-node": {
+    "compilerOptions": {
+      "module": "commonjs"
+    }
+  }
 }

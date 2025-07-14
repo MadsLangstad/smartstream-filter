@@ -1,5 +1,8 @@
-import type { FilterSettings } from '../types';
-import { featureManager } from '../services/feature-manager';
+import type { FilterSettings, FilterStats } from '../types';
+import { PaywallManager } from '../services/paywall/paywall-manager';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('Popup');
 
 class PopupController {
   private minSlider!: HTMLInputElement;
@@ -7,19 +10,20 @@ class PopupController {
   private minValue!: HTMLElement;
   private maxValue!: HTMLElement;
   private enabledToggle!: HTMLInputElement;
+  private paywall = PaywallManager.getInstance();
 
   constructor() {
-    console.log('[SmartStream] Popup initializing');
+    logger.info('Popup initializing');
     this.init();
   }
 
   private async init() {
-    await featureManager.initialize();
     await this.setupElements();
     await this.loadSettings();
     await this.setupPremiumFeatures();
     this.setupListeners();
     this.setupMessageListener();
+    this.loadStats();
   }
 
   private async setupElements() {
@@ -33,7 +37,7 @@ class PopupController {
   private async loadSettings() {
     return new Promise<void>((resolve) => {
       chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings: FilterSettings) => {
-        console.log('[SmartStream] Loaded settings:', settings);
+        logger.debug('Loaded settings:', settings);
         this.minSlider.value = settings.minDuration.toString();
         this.maxSlider.value = settings.maxDuration.toString();
         this.enabledToggle.checked = settings.enabled;
@@ -104,24 +108,91 @@ class PopupController {
   }
 
   private async setupPremiumFeatures() {
-    const planInfo = await featureManager.getPlanInfo();
-    console.log('[SmartStream] Plan info:', planInfo);
+    // Wait for PaywallManager to initialize
+    await this.paywall.waitForInit();
+    
+    const user = this.paywall.getUser();
+    const license = this.paywall.getLicense();
+    
+    // More robust premium check - check if plan exists and is not free
+    const isPremium = license?.plan && license.plan !== 'free' && license.status === 'active';
+    
+    logger.debug('User:', user);
+    logger.debug('License:', license);
+    logger.debug('Is Premium:', isPremium);
 
-    // Add premium status indicator
-    const header = document.querySelector('.header');
-    if (header && planInfo.plan.type === 'premium') {
-      const premiumBadge = document.createElement('div');
-      premiumBadge.style.cssText = 'position: absolute; top: 10px; right: 10px; font-size: 20px;';
-      premiumBadge.innerHTML = '⭐';
-      premiumBadge.title = 'Premium Active';
-      header.appendChild(premiumBadge);
+    // Show user section if logged in
+    const userSection = document.getElementById('user-section');
+    const premiumSection = document.getElementById('premium-section');
+    
+    if (user && userSection) {
+      userSection.style.display = 'block';
+      const emailEl = userSection.querySelector('.user-email');
+      const planEl = userSection.querySelector('.user-plan');
+      
+      if (emailEl) emailEl.textContent = user.email;
+      if (planEl) {
+        const planName = license?.plan ? 
+          license.plan.charAt(0).toUpperCase() + license.plan.slice(1) : 
+          'Free';
+        planEl.textContent = `${planName} Plan`;
+      }
+      
+      // Account button
+      const accountBtn = document.getElementById('account-btn');
+      accountBtn?.addEventListener('click', async () => {
+        if (isPremium) {
+          // Show account management
+          alert('Account management coming soon!');
+        } else {
+          // Trigger paywall
+          const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tabs[0]?.id) {
+            chrome.tabs.sendMessage(tabs[0].id, { type: 'SHOW_PAYWALL' });
+            window.close();
+          }
+        }
+      });
     }
 
-    // Show upgrade section if not premium
-    if (planInfo.plan.type === 'free') {
-      const upgradeSection = document.createElement('div');
-      upgradeSection.id = 'upgrade-section';
-      upgradeSection.style.cssText = `
+    // Premium status indicator removed - star only shows in YouTube header
+
+    // Setup unlock button for premium section
+    const unlockBtn = document.getElementById('unlock-btn');
+    unlockBtn?.addEventListener('click', async () => {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tabs[0]?.id) {
+        chrome.tabs.sendMessage(tabs[0].id, { type: 'SHOW_PAYWALL' });
+        window.close();
+      }
+    });
+
+    // Show premium features for premium users
+    const premiumFeatures = document.getElementById('premium-features');
+    if (premiumFeatures) {
+      if (isPremium) {
+        logger.info('Showing premium features section');
+        premiumFeatures.style.display = 'block';
+        this.setupPremiumFeatureHandlers();
+      } else {
+        logger.info('Hiding premium features section - user is not premium');
+        premiumFeatures.style.display = 'none';
+      }
+    } else {
+      logger.warn('Premium features section not found in DOM');
+    }
+
+    // Hide the upgrade section that's built into HTML if premium
+    const upgradeSection = document.querySelector('#upgrade-section');
+    if (isPremium && upgradeSection) {
+      upgradeSection.remove();
+    }
+
+    // Show upgrade section only if not premium AND not logged in
+    if (!isPremium && !user) {
+      const newUpgradeSection = document.createElement('div');
+      newUpgradeSection.id = 'upgrade-section';
+      newUpgradeSection.style.cssText = `
         padding: 15px;
         margin: 15px;
         background: rgba(255, 215, 0, 0.1);
@@ -129,7 +200,7 @@ class PopupController {
         border-radius: 8px;
         text-align: center;
       `;
-      upgradeSection.innerHTML = `
+      newUpgradeSection.innerHTML = `
         <h3 style="color: #ffd700; margin: 0 0 10px 0; font-size: 14px;">Unlock Premium Features</h3>
         <ul style="text-align: left; margin: 10px 0; padding-left: 20px; font-size: 12px; color: #aaa;">
           <li>Advanced filters (keywords, channels)</li>
@@ -151,10 +222,15 @@ class PopupController {
       
       const footer = document.querySelector('.footer');
       if (footer) {
-        footer.parentElement?.insertBefore(upgradeSection, footer);
+        footer.parentElement?.insertBefore(newUpgradeSection, footer);
         
-        document.getElementById('upgrade-btn')?.addEventListener('click', () => {
-          chrome.tabs.create({ url: 'https://smartstreamfilter.com/upgrade' });
+        document.getElementById('upgrade-btn')?.addEventListener('click', async () => {
+          // Close popup and trigger paywall in main tab
+          const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tabs[0]?.id) {
+            chrome.tabs.sendMessage(tabs[0].id, { type: 'SHOW_PAYWALL' });
+            window.close();
+          }
         });
       }
     }
@@ -164,7 +240,7 @@ class PopupController {
     // Listen for settings updates from content script
     chrome.runtime.onMessage.addListener((message) => {
       if (message.type === 'SETTINGS_UPDATED') {
-        console.log('[SmartStream] Popup received settings update:', message.settings);
+        logger.debug('Popup received settings update:', message.settings);
         this.minSlider.value = message.settings.minDuration.toString();
         this.maxSlider.value = message.settings.maxDuration.toString();
         this.enabledToggle.checked = message.settings.enabled;
@@ -215,6 +291,124 @@ class PopupController {
       ">Upgrade</button>
     `;
     document.body.appendChild(upgradePrompt);
+  }
+
+  private async loadStats() {
+    // Get stats from storage
+    const stored = await chrome.storage.local.get(['stats']);
+    if (stored.stats) {
+      this.updateStatsDisplay(stored.stats);
+    }
+
+    // Request fresh stats from content script
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tabs[0]?.id && tabs[0].url?.includes('youtube.com')) {
+      chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATS' }, (stats) => {
+        // Check for errors (tab might not have content script)
+        if (chrome.runtime.lastError) {
+          console.debug('Content script not ready:', chrome.runtime.lastError.message);
+          return;
+        }
+        
+        if (stats) {
+          this.updateStatsDisplay(stats);
+        }
+      });
+    }
+  }
+
+  private updateStatsDisplay(stats: FilterStats) {
+    const videosValue = document.querySelector('.stat-card.videos .stat-value');
+    const timeValue = document.querySelector('.stat-card.time .stat-value');
+    
+    if (videosValue && stats.videosShown !== undefined && stats.videosHidden !== undefined) {
+      videosValue.textContent = `${stats.videosShown}/${stats.videosShown + stats.videosHidden}`;
+    }
+    
+    if (timeValue && stats.totalTimeHidden !== undefined) {
+      const hours = Math.floor(stats.totalTimeHidden / 3600);
+      const minutes = Math.floor((stats.totalTimeHidden % 3600) / 60);
+      if (hours > 0) {
+        timeValue.textContent = `${hours}h ${minutes}m`;
+      } else {
+        timeValue.textContent = `${minutes}m`;
+      }
+    }
+  }
+
+  private async setupPremiumFeatureHandlers() {
+    // Load saved premium filters
+    const stored = await chrome.storage.local.get(['keywordFilters', 'channelFilters']);
+    
+    // Keyword filter
+    const keywordInput = document.getElementById('keyword-filter') as HTMLInputElement;
+    if (keywordInput) {
+      if (stored.keywordFilters) {
+        keywordInput.value = stored.keywordFilters;
+      }
+      
+      // Save on change with debounce
+      let keywordTimer: number;
+      keywordInput.addEventListener('input', () => {
+        clearTimeout(keywordTimer);
+        keywordTimer = window.setTimeout(() => {
+          const keywords = keywordInput.value.trim();
+          chrome.storage.local.set({ keywordFilters: keywords });
+          // Notify content script
+          chrome.runtime.sendMessage({ 
+            type: 'UPDATE_PREMIUM_FILTERS', 
+            filters: { keywords } 
+          });
+        }, 500);
+      });
+    }
+    
+    // Channel filter
+    const channelInput = document.getElementById('channel-filter') as HTMLInputElement;
+    if (channelInput) {
+      if (stored.channelFilters) {
+        channelInput.value = stored.channelFilters;
+      }
+      
+      // Save on change with debounce
+      let channelTimer: number;
+      channelInput.addEventListener('input', () => {
+        clearTimeout(channelTimer);
+        channelTimer = window.setTimeout(() => {
+          const channels = channelInput.value.trim();
+          chrome.storage.local.set({ channelFilters: channels });
+          // Notify content script
+          chrome.runtime.sendMessage({ 
+            type: 'UPDATE_PREMIUM_FILTERS', 
+            filters: { channels } 
+          });
+        }, 500);
+      });
+    }
+    
+    // Preset buttons
+    const presetButtons = document.querySelectorAll('.preset-btn');
+    presetButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const minDuration = parseInt(btn.getAttribute('data-min') || '0');
+        const maxDuration = parseInt(btn.getAttribute('data-max') || '600');
+        
+        // Update sliders
+        this.minSlider.value = minDuration.toString();
+        this.maxSlider.value = maxDuration.toString();
+        this.updateDisplayValues();
+        
+        // Update settings
+        this.updateSettings({ 
+          minDuration, 
+          maxDuration 
+        });
+        
+        // Visual feedback
+        btn.classList.add('active');
+        setTimeout(() => btn.classList.remove('active'), 200);
+      });
+    });
   }
 }
 

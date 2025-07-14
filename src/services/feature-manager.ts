@@ -54,7 +54,7 @@ export class FeatureManager {
       } else {
         // Default free plan
         this.userPlan = {
-          type: 'free',
+          type: 'premium',
           features: [FEATURES.BASIC_DURATION_FILTER, FEATURES.YOUTUBE_SUPPORT]
         };
       }
