@@ -295,11 +295,11 @@ class YouTubeHeaderIntegration {
       <span>Time saved: 0h 0m</span>
     `;
     
-    // Premium indicator removed per user preference
-    
+    // Premium indicator removed per user preferenc
     container.appendChild(toggle);
     container.appendChild(durationControls);
     container.appendChild(statsDisplay);
+    container.appendChild(advancedBtn);
     
     // Add advanced filters button
     const advancedBtn = document.createElement('button');
@@ -393,6 +393,7 @@ class YouTubeHeaderIntegration {
         this.settings = message.settings;
         this.updateUI();
         this.filterVideos();
+      
       } else if (message.type === 'SHOW_PAYWALL') {
         // Show paywall when requested from popup
         this.paywall.requirePremium('advanced_filters');
@@ -523,7 +524,6 @@ class YouTubeHeaderIntegration {
         <span>Time saved: ${timeSavedHours}h ${timeSavedMinutes}m</span>
       `;
     }
-    
     // Save stats to storage for popup
     chrome.storage.local.set({ stats: this.stats });
   }

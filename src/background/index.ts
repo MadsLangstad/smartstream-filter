@@ -1,10 +1,13 @@
 import type { FilterSettings, MessageType } from '../types';
+import { PaymentService } from '../features/premium/payment-service';
 
 const DEFAULT_SETTINGS: FilterSettings = {
   minDuration: 5,
   maxDuration: 30,
   enabled: true
 };
+
+const paymentService = new PaymentService();
 
 /// <reference types="chrome"/>
 

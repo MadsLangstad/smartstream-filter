@@ -20,6 +20,7 @@ class PopupController {
   private async init() {
     await this.setupElements();
     await this.loadSettings();
+    await this.loadStats();
     await this.setupPremiumFeatures();
     this.setupListeners();
     this.setupMessageListener();
@@ -46,6 +47,40 @@ class PopupController {
         resolve();
       });
     });
+  }
+
+  private async loadStats() {
+    // Query the active YouTube tab
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const activeTab = tabs[0];
+    
+    if (activeTab?.id && activeTab.url?.includes('youtube.com')) {
+      chrome.tabs.sendMessage(activeTab.id, { type: 'GET_STATS' }, (response) => {
+        if (response && response.stats) {
+          this.updateStatsDisplay(response.stats);
+        }
+      });
+    }
+  }
+
+  private updateStatsDisplay(stats: { videosShown: number; videosHidden: number; totalTimeHidden: number }) {
+    const videosFiltered = document.querySelector('.stat-card.videos .stat-value');
+    const timeSaved = document.querySelector('.stat-card.time .stat-value');
+    
+    if (videosFiltered) {
+      videosFiltered.textContent = stats.videosHidden.toString();
+    }
+    
+    if (timeSaved) {
+      const hours = Math.floor(stats.totalTimeHidden / 3600);
+      const minutes = Math.floor((stats.totalTimeHidden % 3600) / 60);
+      
+      if (hours > 0) {
+        timeSaved.textContent = `${hours}h ${minutes}m`;
+      } else {
+        timeSaved.textContent = `${minutes}m`;
+      }
+    }
   }
 
   private setupListeners() {
@@ -249,8 +284,16 @@ class PopupController {
       } else if (message.type === 'SHOW_UPGRADE_PROMPT') {
         // Handle upgrade prompts
         this.showUpgradePrompt(message.feature);
+      } else if (message.type === 'STATS_UPDATED') {
+        // Handle stats updates
+        this.updateStatsDisplay(message.stats);
       }
     });
+    
+    // Also refresh stats periodically while popup is open
+    setInterval(() => {
+      this.loadStats();
+    }, 2000); // Update every 2 seconds
   }
 
   private showUpgradePrompt(_feature: string) {

@@ -48,6 +48,7 @@ export type MessageType =
   | { type: 'STATS_UPDATED'; stats: FilterStats }
   | { type: 'UPDATE_PREMIUM_FILTERS'; filters: { keywords?: string; channels?: string } };
 
+
 export interface StorageData {
   settings: FilterSettings;
   premium?: boolean;
