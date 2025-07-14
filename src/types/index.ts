@@ -31,7 +31,12 @@ export type MessageType =
   | { type: 'GET_SETTINGS' }
   | { type: 'UPDATE_SETTINGS'; settings: Partial<FilterSettings> }
   | { type: 'FILTER_VIDEOS' }
-  | { type: 'SETTINGS_UPDATED'; settings: FilterSettings };
+  | { type: 'SETTINGS_UPDATED'; settings: FilterSettings }
+  | { type: 'CHECK_PREMIUM' }
+  | { type: 'OPEN_CHECKOUT'; email?: string }
+  | { type: 'PREMIUM_ACTIVATED' }
+  | { type: 'PREMIUM_DEACTIVATED' }
+  | { type: 'PREMIUM_STATUS_CHANGED'; isPremium: boolean };
 
 export interface StorageData {
   settings: FilterSettings;

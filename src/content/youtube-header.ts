@@ -1,6 +1,7 @@
 import { VideoCache } from './video-cache';
 import { OptimizedObserver } from './optimized-observer';
 import { PerformanceMonitor } from '../utils/performance-monitor';
+import { SimplePaywall } from '../features/premium/simple-paywall';
 
 interface FilterSettings {
   minDuration: number;
@@ -285,6 +286,39 @@ class YouTubeHeaderIntegration {
       <span>Time saved: 0h 0m</span>
     `;
     
+    // Add advanced filters button
+    const advancedBtn = document.createElement('button');
+    advancedBtn.style.cssText = `
+      background: rgba(255, 215, 0, 0.1);
+      border: 1px solid rgba(255, 215, 0, 0.3);
+      color: #ffd700;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      margin-left: 12px;
+      font-family: Roboto, Arial, sans-serif;
+    `;
+    advancedBtn.textContent = '⚙️ Advanced';
+    advancedBtn.title = 'Advanced Filters (Premium)';
+    advancedBtn.addEventListener('click', async () => {
+      const paywall = SimplePaywall.getInstance();
+      const hasAccess = await paywall.requirePremium('Advanced Filters');
+      
+      if (hasAccess) {
+        alert('Advanced filters would open here! (Premium feature active)');
+      }
+    });
+    
+    // Add dev mode premium activation (Ctrl+Shift+P)
+    document.addEventListener('keydown', async (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'p') {
+        e.preventDefault();
+        const paywall = SimplePaywall.getInstance();
+        await paywall.activatePremiumTrial(30);
+      }
+    });
+    
     // Add premium indicator if user has premium features
     if (this.isPremium) {
       const premiumBadge = document.createElement('div');
@@ -297,6 +331,7 @@ class YouTubeHeaderIntegration {
     container.appendChild(toggle);
     container.appendChild(durationControls);
     container.appendChild(statsDisplay);
+    container.appendChild(advancedBtn);
     
     // Insert after voice search button
     targetElement.insertAdjacentElement('afterend', container);
@@ -357,12 +392,16 @@ class YouTubeHeaderIntegration {
       }
     });
 
-    // Listen for settings updates
-    chrome.runtime.onMessage.addListener((message) => {
+    // Listen for settings updates and stats requests
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.type === 'SETTINGS_UPDATED') {
         this.settings = message.settings;
         this.updateUI();
         this.filterVideos();
+      } else if (message.type === 'GET_STATS') {
+        // Send current stats back to popup
+        sendResponse({ stats: this.stats });
+        return true; // Keep message channel open for async response
       }
     });
   }
@@ -448,6 +487,14 @@ class YouTubeHeaderIntegration {
         <span>Time saved: ${timeSavedHours}h ${timeSavedMinutes}m</span>
       `;
     }
+    
+    // Broadcast stats update to popup if it's open
+    chrome.runtime.sendMessage({
+      type: 'STATS_UPDATED',
+      stats: this.stats
+    }).catch(() => {
+      // Ignore errors if popup is closed
+    });
   }
 
   // Removed - now using VideoCache.parseDuration()

@@ -4,6 +4,8 @@
 
 import { FilterCriteria } from '../../core/domain/filter';
 import { IEventBus } from '../../shared/interfaces/event-bus';
+import { AdvancedFilterPanel } from './advanced-filters';
+import { FeatureGate } from '../premium/feature-gate';
 
 export interface HeaderControlsConfig {
   criteria: FilterCriteria;
@@ -77,6 +79,15 @@ export class HeaderControls {
       <span>Time saved: 0h 0m</span>
     `;
 
+    // Advanced filters button (premium)
+    const advancedButton = document.createElement('button');
+    advancedButton.className = 'smartstream-advanced-btn';
+    advancedButton.innerHTML = '⚙️ Filters';
+    advancedButton.title = this.config.isPremium ? 'Advanced Filters' : 'Advanced Filters (Premium)';
+    if (!this.config.isPremium) {
+      advancedButton.classList.add('premium-locked');
+    }
+
     // Premium badge
     if (this.config.isPremium) {
       const premiumBadge = document.createElement('div');
@@ -89,6 +100,7 @@ export class HeaderControls {
     container.appendChild(toggle);
     container.appendChild(durationControls);
     container.appendChild(statsDisplay);
+    container.appendChild(advancedButton);
 
     return container;
   }
@@ -137,6 +149,20 @@ export class HeaderControls {
       this.updateCriteria({
         maxDuration: maxMinutes * 60
       });
+    });
+
+    // Advanced filters button listener
+    const advancedBtn = this.container.querySelector('.smartstream-advanced-btn');
+    advancedBtn?.addEventListener('click', async () => {
+      const gate = FeatureGate.getInstance();
+      const hasAccess = await gate.requirePremium('Advanced Filters');
+      
+      if (hasAccess) {
+        const panel = new AdvancedFilterPanel(this.config.criteria, (update) => {
+          this.updateCriteria(update);
+        });
+        panel.show();
+      }
     });
 
     // Listen for stats updates
@@ -288,6 +314,34 @@ export class HeaderControls {
         font-size: 16px;
         margin-left: 4px;
         cursor: pointer;
+      }
+
+      .smartstream-advanced-btn {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #fff;
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-left: 8px;
+      }
+
+      .smartstream-advanced-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: #ffd700;
+      }
+
+      .smartstream-advanced-btn.premium-locked {
+        background: rgba(255, 215, 0, 0.1);
+        border-color: rgba(255, 215, 0, 0.3);
+        color: #ffd700;
+      }
+
+      .smartstream-advanced-btn.premium-locked:hover {
+        background: rgba(255, 215, 0, 0.2);
+        border-color: #ffd700;
       }
 
       @media (max-width: 950px) {
