@@ -2,12 +2,10 @@
  * Advanced filters - Premium feature
  */
 
-import { Filter, FilterCriteria } from '../../core/domain/filter';
-import { Video } from '../../core/domain/video';
-import { Premium } from '../premium/feature-gate';
+import { Filter, FilterCriteria } from '../../../core/domain/filter';
+import { Video } from '../../../core/domain/video';
 
 export class KeywordFilter extends Filter {
-  @Premium('Keyword Filtering')
   matches(video: Video): boolean {
     if (!this.criteria.keywords || this.criteria.keywords.length === 0) {
       return true;
@@ -21,7 +19,7 @@ export class KeywordFilter extends Filter {
 }
 
 export class ChannelFilter extends Filter {
-  @Premium('Channel Filtering')
+  // Premium feature: Channel Filtering
   matches(video: Video): boolean {
     if (!video.metadata.channel) return true;
 
@@ -46,7 +44,7 @@ export class ChannelFilter extends Filter {
 }
 
 export class DateFilter extends Filter {
-  @Premium('Upload Date Filtering')
+  // Premium feature: Upload Date Filtering
   matches(video: Video): boolean {
     if (!this.criteria.uploadedAfter || !video.metadata.uploadDate) {
       return true;
@@ -57,7 +55,7 @@ export class DateFilter extends Filter {
 }
 
 export class ViewCountFilter extends Filter {
-  @Premium('View Count Filtering')
+  // Premium feature: View Count Filtering
   matches(video: Video): boolean {
     if (!video.metadata.viewCount) return true;
 
@@ -77,6 +75,7 @@ export class ViewCountFilter extends Filter {
 export class AdvancedFilterPanel {
   private container: HTMLElement;
   private onUpdate: (criteria: Partial<FilterCriteria>) => void;
+  private clickOutsideHandler: ((e: MouseEvent) => void) | null = null;
 
   constructor(
     private criteria: FilterCriteria,
@@ -86,7 +85,7 @@ export class AdvancedFilterPanel {
     this.container = this.createElement();
   }
 
-  @Premium('Advanced Filters')
+  // Premium feature: Advanced Filters
   async show(): Promise<void> {
     document.body.appendChild(this.container);
     requestAnimationFrame(() => {
@@ -96,6 +95,11 @@ export class AdvancedFilterPanel {
 
   hide(): void {
     this.container.classList.remove('show');
+    // Remove click outside listener
+    if (this.clickOutsideHandler) {
+      document.removeEventListener('click', this.clickOutsideHandler);
+      this.clickOutsideHandler = null;
+    }
     setTimeout(() => {
       this.container.remove();
     }, 300);
@@ -178,6 +182,18 @@ export class AdvancedFilterPanel {
     panel.querySelector('.filter-reset')?.addEventListener('click', () => {
       this.resetFilters();
     });
+    
+    // Close when clicking outside
+    this.clickOutsideHandler = (e: MouseEvent) => {
+      if (!panel.contains(e.target as Node) && panel.classList.contains('show')) {
+        this.hide();
+      }
+    };
+    
+    // Add slight delay to prevent immediate closing
+    setTimeout(() => {
+      document.addEventListener('click', this.clickOutsideHandler!);
+    }, 100);
   }
 
   private applyFilters(): void {

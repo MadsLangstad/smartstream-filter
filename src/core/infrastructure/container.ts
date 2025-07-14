@@ -5,6 +5,7 @@
 import { EventBus } from './event-bus';
 import { FilterVideosUseCase } from '../application/filter-videos-use-case';
 import { YouTubeAdapter } from '../../adapters/youtube/youtube-adapter';
+import { BasePlatformAdapter } from '../../adapters/base-adapter';
 import { ChromeStorageRepository } from './chrome-storage-repository';
 import { PerformanceMonitor } from '../../utils/performance-monitor';
 import { IVideoRepository, ISettingsRepository } from '../../shared/interfaces/repositories';

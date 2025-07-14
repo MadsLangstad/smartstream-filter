@@ -9,6 +9,7 @@ export interface IEventBus {
   on<T>(event: string, handler: EventHandler<T>): void;
   off(event: string, handler: EventHandler): void;
   once<T>(event: string, handler: EventHandler<T>): void;
+  clear(): void;
 }
 
 // Event types

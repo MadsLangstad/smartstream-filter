@@ -7,6 +7,7 @@ export interface VideoMetadata {
   title: string;
   duration: number; // in seconds
   channel?: string;
+  channelName?: string; // alias for channel
   thumbnailUrl?: string;
   uploadDate?: Date;
   viewCount?: number;

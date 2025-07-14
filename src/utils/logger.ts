@@ -104,8 +104,7 @@ class Logger {
   }
 }
 
-// Export singleton instance
-export const logger = new Logger();
+// Singleton instance removed - use createLogger() instead
 
 // Export for specific module loggers
 export const createLogger = (prefix: string, config?: Partial<LoggerConfig>) => {

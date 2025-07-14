@@ -1,5 +1,4 @@
 import type { FilterSettings, MessageType } from '../types';
-import { PaymentService } from '../features/premium/payment-service';
 
 const DEFAULT_SETTINGS: FilterSettings = {
   minDuration: 5,
@@ -7,7 +6,8 @@ const DEFAULT_SETTINGS: FilterSettings = {
   enabled: true
 };
 
-const paymentService = new PaymentService();
+// PaywallManager is available but not used in background script currently
+// const paywallManager = PaywallManager.getInstance();
 
 /// <reference types="chrome"/>
 

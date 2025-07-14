@@ -14,7 +14,7 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        'content-youtube': path.resolve(__dirname, 'src/content/youtube-header.ts'),
+        'content-youtube': path.resolve(__dirname, 'src/content/app.ts'),
       },
       output: {
         entryFileNames: '[name].js',

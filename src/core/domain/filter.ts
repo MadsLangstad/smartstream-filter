@@ -13,6 +13,8 @@ export interface FilterCriteria {
   uploadedAfter?: Date;
   minViews?: number;
   maxViews?: number;
+  keywordFilters?: string[]; // Premium: filter videos by keywords in title
+  channelFilters?: string[]; // Premium: block specific channels
 }
 
 export abstract class Filter {
@@ -37,6 +39,32 @@ export class DurationFilter extends Filter {
   }
 }
 
+export class KeywordFilter extends Filter {
+  matches(video: Video): boolean {
+    if (!this.criteria.keywordFilters || this.criteria.keywordFilters.length === 0) {
+      return true;
+    }
+    
+    const title = video.metadata.title.toLowerCase();
+    return this.criteria.keywordFilters.some(keyword => 
+      title.includes(keyword.toLowerCase())
+    );
+  }
+}
+
+export class ChannelFilter extends Filter {
+  matches(video: Video): boolean {
+    if (!this.criteria.channelFilters || this.criteria.channelFilters.length === 0) {
+      return true;
+    }
+    
+    const channelName = (video.metadata.channelName || video.metadata.channel || '').toLowerCase();
+    return !this.criteria.channelFilters.some(channel => 
+      channelName.includes(channel.toLowerCase())
+    );
+  }
+}
+
 export class CompositeFilter extends Filter {
   private filters: Filter[] = [];
 
@@ -51,9 +79,15 @@ export class CompositeFilter extends Filter {
       this.filters.push(new DurationFilter(this.criteria));
     }
 
-    // Add more filters as needed
-    // this.filters.push(new KeywordFilter(this.criteria));
-    // this.filters.push(new ChannelFilter(this.criteria));
+    // Keyword filter (premium)
+    if (this.criteria.keywordFilters && this.criteria.keywordFilters.length > 0) {
+      this.filters.push(new KeywordFilter(this.criteria));
+    }
+
+    // Channel filter (premium)
+    if (this.criteria.channelFilters && this.criteria.channelFilters.length > 0) {
+      this.filters.push(new ChannelFilter(this.criteria));
+    }
   }
 
   matches(video: Video): boolean {

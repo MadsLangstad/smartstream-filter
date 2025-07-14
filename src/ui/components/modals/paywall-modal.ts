@@ -3,7 +3,7 @@
  * Smooth, modern design with great UX
  */
 
-import type { PlanDetails } from '../paywall-manager';
+import type { PlanDetails } from '../../../services/paywall/paywall-manager';
 
 export interface PaywallModalOptions {
   feature: string;
@@ -126,7 +126,7 @@ function createPlanCard(plan: PlanDetails, currentPlan: string): string {
       </div>
       
       <ul class="ssf-features">
-        ${plan.features.map(feature => `
+        ${plan.features.map((feature: string) => `
           <li>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path d="M20 6L9 17l-5-5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>

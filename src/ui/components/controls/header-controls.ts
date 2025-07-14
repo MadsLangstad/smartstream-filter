@@ -2,10 +2,10 @@
  * Platform-agnostic header controls
  */
 
-import { FilterCriteria } from '../../core/domain/filter';
-import { IEventBus } from '../../shared/interfaces/event-bus';
-import { AdvancedFilterPanel } from './advanced-filters';
-import { FeatureGate } from '../premium/feature-gate';
+import { FilterCriteria } from '../../../core/domain/filter';
+import { IEventBus } from '../../../shared/interfaces/event-bus';
+import { AdvancedFilterPanel } from '../filters/advanced-filters';
+import { PaywallManager } from '../../../services/paywall/paywall-manager';
 
 export interface HeaderControlsConfig {
   criteria: FilterCriteria;
@@ -20,6 +20,7 @@ export class HeaderControls {
   private minSlider: HTMLInputElement | null = null;
   private maxSlider: HTMLInputElement | null = null;
   private toggleSwitch: HTMLElement | null = null;
+  private currentFilterPanel: AdvancedFilterPanel | null = null;
 
   constructor(
     private config: HeaderControlsConfig,
@@ -37,13 +38,11 @@ export class HeaderControls {
     // Add styles
     this.injectStyles();
 
-    // Create toggle
-    const toggle = document.createElement('div');
-    toggle.className = 'smartstream-toggle';
-    toggle.innerHTML = `
-      <div class="smartstream-switch ${this.config.enabled ? 'active' : ''}" 
-           id="smartstream-toggle"></div>
-    `;
+    // Create toggle switch
+    const toggleSwitch = document.createElement('div');
+    toggleSwitch.className = `smartstream-switch ${this.config.enabled ? 'active' : ''}`;
+    toggleSwitch.id = 'smartstream-toggle';
+    toggleSwitch.title = 'Toggle SmartStream Filter';
 
     // Create duration controls
     const minMinutes = Math.floor((this.config.criteria.minDuration || 300) / 60);
@@ -75,8 +74,14 @@ export class HeaderControls {
     statsDisplay.id = 'smartstream-stats';
     statsDisplay.className = 'smartstream-stats';
     statsDisplay.innerHTML = `
-      <span>Videos: 0/0</span>
-      <span>Time saved: 0h 0m</span>
+      <div class="smartstream-stat-item">
+        <div class="smartstream-stat-value" id="smartstream-videos-stat">0/0</div>
+        <div class="smartstream-stat-label">Videos</div>
+      </div>
+      <div class="smartstream-stat-item">
+        <div class="smartstream-stat-value" id="smartstream-time-stat">0h 0m</div>
+        <div class="smartstream-stat-label">Time saved</div>
+      </div>
     `;
 
     // Advanced filters button (premium)
@@ -97,7 +102,7 @@ export class HeaderControls {
       container.appendChild(premiumBadge);
     }
 
-    container.appendChild(toggle);
+    container.appendChild(toggleSwitch);
     container.appendChild(durationControls);
     container.appendChild(statsDisplay);
     container.appendChild(advancedButton);
@@ -107,17 +112,18 @@ export class HeaderControls {
 
   private setupEventListeners(): void {
     // Cache elements
-    this.toggleSwitch = this.container.querySelector('#smartstream-toggle');
     this.minSlider = this.container.querySelector('#smartstream-min');
     this.maxSlider = this.container.querySelector('#smartstream-max');
+    this.toggleSwitch = this.container.querySelector('#smartstream-toggle');
 
-    // Toggle listener
+    // Toggle switch listener
     this.toggleSwitch?.addEventListener('click', () => {
-      const newState = !this.config.enabled;
-      this.config.enabled = newState;
-      this.toggleSwitch.classList.toggle('active');
-      this.container.classList.toggle('disabled');
-      this.config.onToggle(newState);
+      const newEnabled = !this.config.enabled;
+      console.log('[SmartStream] Header toggle clicked, new state:', newEnabled);
+      this.config.enabled = newEnabled;
+      this.toggleSwitch!.classList.toggle('active', newEnabled);
+      this.container.classList.toggle('disabled', !newEnabled);
+      this.config.onToggle(newEnabled);
     });
 
     // Slider listeners
@@ -154,14 +160,31 @@ export class HeaderControls {
     // Advanced filters button listener
     const advancedBtn = this.container.querySelector('.smartstream-advanced-btn');
     advancedBtn?.addEventListener('click', async () => {
-      const gate = FeatureGate.getInstance();
-      const hasAccess = await gate.requirePremium('Advanced Filters');
+      const paywallManager = PaywallManager.getInstance();
+      const hasAccess = await paywallManager.checkFeatureAccess('advanced-filters');
       
-      if (hasAccess) {
-        const panel = new AdvancedFilterPanel(this.config.criteria, (update) => {
-          this.updateCriteria(update);
-        });
-        panel.show();
+      if (!hasAccess) {
+        await paywallManager.showPaywall('Advanced Filters');
+      } else {
+        // Toggle the filter panel
+        if (this.currentFilterPanel) {
+          // Panel is open, close it
+          this.currentFilterPanel.hide();
+          this.currentFilterPanel = null;
+        } else {
+          // Panel is closed, open it
+          this.currentFilterPanel = new AdvancedFilterPanel(this.config.criteria, (update) => {
+            this.updateCriteria(update);
+          });
+          this.currentFilterPanel.show();
+          
+          // Set up a callback to clear the reference when panel is closed
+          const originalHide = this.currentFilterPanel.hide.bind(this.currentFilterPanel);
+          this.currentFilterPanel.hide = () => {
+            originalHide();
+            this.currentFilterPanel = null;
+          };
+        }
       }
     });
 
@@ -193,10 +216,17 @@ export class HeaderControls {
       const hours = Math.floor(data.totalTimeSaved / 3600);
       const minutes = Math.floor((data.totalTimeSaved % 3600) / 60);
       
-      statsElement.innerHTML = `
-        <span>Videos: ${data.shown.length}/${totalVideos}</span>
-        <span>Time saved: ${hours}h ${minutes}m</span>
-      `;
+      const videosElement = statsElement.querySelector('#smartstream-videos-stat');
+      const timeElement = statsElement.querySelector('#smartstream-time-stat');
+      
+      if (videosElement) {
+        videosElement.textContent = `${data.shown.length}/${totalVideos}`;
+      }
+      
+      if (timeElement) {
+        const timeFormatted = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+        timeElement.textContent = timeFormatted;
+      }
     }
   }
 
@@ -227,10 +257,6 @@ export class HeaderControls {
         opacity: 0.5;
       }
 
-      .smartstream-toggle {
-        cursor: pointer;
-      }
-
       .smartstream-switch {
         position: relative;
         width: 32px;
@@ -238,6 +264,8 @@ export class HeaderControls {
         background-color: rgba(255, 255, 255, 0.3);
         border-radius: 20px;
         transition: background-color 0.3s;
+        cursor: pointer;
+        margin-right: 8px;
       }
 
       .smartstream-switch.active {
@@ -304,10 +332,28 @@ export class HeaderControls {
 
       .smartstream-stats {
         display: flex;
-        gap: 12px;
+        gap: 16px;
         margin-left: 12px;
-        font-size: 12px;
+      }
+      
+      .smartstream-stat-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+      }
+      
+      .smartstream-stat-value {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--yt-spec-text-primary, #fff);
+      }
+      
+      .smartstream-stat-label {
+        font-size: 11px;
         color: var(--yt-spec-text-secondary, #aaa);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
       }
 
       .smartstream-premium-badge {
@@ -355,6 +401,29 @@ export class HeaderControls {
 
   getElement(): HTMLElement {
     return this.container;
+  }
+
+  updateEnabled(enabled: boolean): void {
+    console.log('[SmartStream] Header updateEnabled called:', enabled);
+    this.config.enabled = enabled;
+    this.toggleSwitch?.classList.toggle('active', enabled);
+    this.container.classList.toggle('disabled', !enabled);
+  }
+
+  updateCriteriaValues(criteria: FilterCriteria): void {
+    this.config.criteria = criteria;
+    const minMinutes = Math.floor((criteria.minDuration || 300) / 60);
+    const maxMinutes = Math.floor((criteria.maxDuration || 1800) / 60);
+    
+    if (this.minSlider) {
+      this.minSlider.value = minMinutes.toString();
+      this.updateSliderDisplay('min', minMinutes);
+    }
+    
+    if (this.maxSlider) {
+      this.maxSlider.value = maxMinutes.toString();
+      this.updateSliderDisplay('max', maxMinutes);
+    }
   }
 
   destroy(): void {

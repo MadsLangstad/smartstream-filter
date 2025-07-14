@@ -3,22 +3,33 @@
  */
 
 import { createLogger } from './logger';
+import { IPerformanceMonitor, PerformanceMetrics as IPerformanceMetrics } from '../shared/interfaces/performance';
 
 const logger = createLogger('Performance', { enableInProduction: true });
 
-interface PerformanceMetrics {
+interface PerformanceMetrics extends IPerformanceMetrics {
   filterTime: number;
   videosProcessed: number;
   cacheHitRate: number;
   memoryUsed: number;
 }
 
-export class PerformanceMonitor {
+export class PerformanceMonitor implements IPerformanceMonitor {
+  private static instance: PerformanceMonitor;
+  
+  static getInstance(): PerformanceMonitor {
+    if (!this.instance) {
+      this.instance = new PerformanceMonitor();
+    }
+    return this.instance;
+  }
   private metrics: PerformanceMetrics = {
     filterTime: 0,
     videosProcessed: 0,
     cacheHitRate: 0,
-    memoryUsed: 0
+    memoryUsed: 0,
+    executionTime: 0,
+    itemsProcessed: 0
   };
   
   private cacheHits = 0;
@@ -101,5 +112,30 @@ export class PerformanceMonitor {
     setInterval(() => {
       this.logReport();
     }, intervalMs);
+  }
+  
+  /**
+   * Start performance monitoring
+   */
+  start() {
+    this.startMonitoring();
+  }
+  
+  /**
+   * Record a metric
+   */
+  recordMetric(name: string, value: number): void {
+    logger.debug(`Metric ${name}: ${value}`);
+  }
+  
+  /**
+   * Start a transaction
+   */
+  startTransaction(name: string): () => void {
+    const start = performance.now();
+    return () => {
+      const duration = performance.now() - start;
+      logger.performance(`Transaction ${name}`, duration);
+    };
   }
 }

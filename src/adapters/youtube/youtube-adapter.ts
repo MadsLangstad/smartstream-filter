@@ -58,20 +58,20 @@ export class YouTubeAdapter extends BasePlatformAdapter {
   }
 
   private parseDuration(durationText: string): number {
-    const cleanText = durationText.trim().split('\n')[0].trim();
+    const cleanText = durationText.trim().split('\n')[0]?.trim() || '';
     const parts = cleanText.split(':').map(p => parseInt(p));
     
     if (parts.length === 3) {
-      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      return (parts[0] || 0) * 3600 + (parts[1] || 0) * 60 + (parts[2] || 0);
     } else if (parts.length === 2) {
-      return parts[0] * 60 + parts[1];
+      return (parts[0] || 0) * 60 + (parts[1] || 0);
     } else if (parts.length === 1) {
-      return parts[0];
+      return parts[0] || 0;
     }
     return 0;
   }
 
-  protected generateId(element: Element): string {
+  protected override generateId(element: Element): string {
     // Try to get video ID from href
     const link = element.querySelector('a#thumbnail');
     if (link) {

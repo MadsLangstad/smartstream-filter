@@ -13,4 +13,6 @@ export interface IPerformanceMonitor {
   recordMetric(name: string, value: number): void;
   getMetrics(): PerformanceMetrics;
   startTransaction(name: string): () => void;
+  recordVideosProcessed(count: number): void;
+  start(): void;
 }

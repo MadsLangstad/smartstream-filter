@@ -40,7 +40,7 @@ export class ChromeStorageRepository implements ISettingsRepository {
 
   // Listen for changes
   onChange(callback: (criteria: FilterCriteria, enabled: boolean) => void): void {
-    chrome.storage.onChanged.addListener(async (changes, namespace) => {
+    chrome.storage.onChanged.addListener(async (_changes, namespace) => {
       if (namespace === 'sync') {
         const criteria = await this.getFilterCriteria();
         const enabled = await this.isEnabled();

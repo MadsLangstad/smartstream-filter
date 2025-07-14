@@ -26,7 +26,7 @@ export abstract class BasePlatformAdapter implements IVideoRepository {
         // Use cached data
         const video = new Video({
           id: this.generateId(element),
-          title: cached.title,
+          title: (cached as any).title || '',
           duration: cached.duration,
           platform: this.getPlatformName() as any
         }, element);
@@ -67,7 +67,7 @@ export abstract class BasePlatformAdapter implements IVideoRepository {
     return element.style.display !== 'none' && !element.hasAttribute('hidden');
   }
 
-  protected generateId(element: Element): string {
+  protected generateId(_element: Element): string {
     // Generate unique ID based on element position or data attributes
     return `${this.getPlatformName()}_${Date.now()}_${Math.random()}`;
   }

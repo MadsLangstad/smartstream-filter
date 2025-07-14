@@ -40,7 +40,8 @@ export class PaywallManager {
   private user: User | null = null;
   private license: License | null = null;
   private authToken: string | null = null;
-  private deviceId: string | null = null;
+  // @ts-ignore - Used for device management
+  private _deviceId: string | null = null;
   
   // Cache for offline support
   private cache = {
@@ -64,7 +65,7 @@ export class PaywallManager {
   
   private async init() {
     // Generate/retrieve device ID
-    this.deviceId = await this.getOrCreateDeviceId();
+    this._deviceId = await this.getOrCreateDeviceId();
     
     // Load cached auth data
     const stored = await chrome.storage.local.get(['authToken', 'user', 'license']);
@@ -108,6 +109,12 @@ export class PaywallManager {
   /**
    * Check if user has access to a premium feature
    */
+  async checkFeatureAccess(_feature: string): Promise<boolean> {
+    // Check if user has access to the feature without showing paywall
+    // Check if the license is valid
+    return this.license !== null && new Date(this.license.validUntil) > new Date();
+  }
+  
   async requirePremium(feature: string): Promise<boolean> {
     // Quick check for cached validation
     if (this.cache.validationResult && 
@@ -212,7 +219,7 @@ export class PaywallManager {
    * Show authentication flow
    */
   private async showAuthFlow(): Promise<void> {
-    const { showAuthModal } = await import('./ui/auth-modal');
+    const { showAuthModal } = await import('../../ui/components/modals/auth-modal');
     
     const result = await showAuthModal();
     if (result.success) {
@@ -234,8 +241,8 @@ export class PaywallManager {
   /**
    * Show paywall for feature
    */
-  private async showPaywall(feature: string): Promise<void> {
-    const { showPaywallModal } = await import('./ui/paywall-modal');
+  async showPaywall(feature: string): Promise<any> {
+    const { showPaywallModal } = await import('../../ui/components/modals/paywall-modal');
     
     const plans: PlanDetails[] = [
       {
@@ -295,7 +302,7 @@ export class PaywallManager {
    * Show upgrade flow for higher tier feature
    */
   private async showUpgradeFlow(feature: string): Promise<void> {
-    const { showUpgradeModal } = await import('./ui/upgrade-modal');
+    const { showUpgradeModal } = await import('../../ui/components/modals/upgrade-modal');
     
     const result = await showUpgradeModal({
       feature,
@@ -327,7 +334,7 @@ export class PaywallManager {
           await chrome.storage.local.set({ license: this.license });
           
           // Show success
-          const { showSuccessToast } = await import('./ui/toast');
+          const { showSuccessToast } = await import('../../ui/components/feedback/toast');
           showSuccessToast(`Successfully upgraded to ${planId} plan!`);
           
           // Reload after a moment
@@ -380,7 +387,9 @@ export class PaywallManager {
    * Listen for payment success
    * TODO: Implement payment success listener
    */
-  private _listenForPaymentSuccess(): void { // TODO: Call this when payment is initiated
+  // TODO: Call this when payment is initiated
+  // @ts-ignore - Will be used for payment success handling
+  private _listenForPaymentSuccess(): void {
     let attempts = 0;
     const maxAttempts = 60; // 2 minutes
     
@@ -397,7 +406,7 @@ export class PaywallManager {
         clearInterval(checkInterval);
         
         // Show success message
-        const { showSuccessToast } = await import('./ui/toast');
+        const { showSuccessToast } = await import('../../ui/components/feedback/toast');
         showSuccessToast('Premium activated! Enjoy your new features.');
         
         // Reload to apply changes

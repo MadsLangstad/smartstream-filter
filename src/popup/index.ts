@@ -1,4 +1,4 @@
-import type { FilterSettings, FilterStats } from '../types';
+import type { FilterSettings } from '../types';
 import { PaywallManager } from '../services/paywall/paywall-manager';
 import { createLogger } from '../utils/logger';
 
@@ -36,17 +36,45 @@ class PopupController {
   }
 
   private async loadSettings() {
-    return new Promise<void>((resolve) => {
-      chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (settings: FilterSettings) => {
-        logger.debug('Loaded settings:', settings);
-        this.minSlider.value = settings.minDuration.toString();
-        this.maxSlider.value = settings.maxDuration.toString();
-        this.enabledToggle.checked = settings.enabled;
-        this.updateDisplayValues();
-        this.updateSyncStatus(settings.enabled);
-        resolve();
+    // Try to get settings from the active YouTube tab first
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const activeTab = tabs[0];
+    
+    if (activeTab?.id && activeTab.url?.includes('youtube.com')) {
+      return new Promise<void>((resolve) => {
+        chrome.tabs.sendMessage(activeTab.id!, { type: 'GET_SETTINGS' }, (settings: FilterSettings) => {
+          if (chrome.runtime.lastError || !settings) {
+            // Fallback to storage if content script isn't ready
+            this.loadSettingsFromStorage().then(resolve);
+          } else {
+            logger.debug('Loaded settings from content script:', settings);
+            this.minSlider.value = settings.minDuration.toString();
+            this.maxSlider.value = settings.maxDuration.toString();
+            this.enabledToggle.checked = settings.enabled;
+            this.updateDisplayValues();
+            this.updateSyncStatus(settings.enabled);
+            resolve();
+          }
+        });
       });
-    });
+    } else {
+      // Not on YouTube, load from storage
+      return this.loadSettingsFromStorage();
+    }
+  }
+  
+  private async loadSettingsFromStorage(): Promise<void> {
+    // Load directly from chrome.storage.sync to match content script
+    const filterSettings = await chrome.storage.sync.get(['filterSettings', 'filterEnabled']);
+    const criteria = filterSettings.filterSettings || { minDuration: 300, maxDuration: 1800 };
+    const enabled = filterSettings.filterEnabled !== false;
+    
+    logger.debug('Loaded settings from storage:', { criteria, enabled });
+    this.minSlider.value = Math.floor(criteria.minDuration / 60).toString();
+    this.maxSlider.value = Math.floor(criteria.maxDuration / 60).toString();
+    this.enabledToggle.checked = enabled;
+    this.updateDisplayValues();
+    this.updateSyncStatus(enabled);
   }
 
   private async loadStats() {
@@ -55,7 +83,7 @@ class PopupController {
     const activeTab = tabs[0];
     
     if (activeTab?.id && activeTab.url?.includes('youtube.com')) {
-      chrome.tabs.sendMessage(activeTab.id, { type: 'GET_STATS' }, (response) => {
+      chrome.tabs.sendMessage(activeTab.id!, { type: 'GET_STATS' }, (response) => {
         if (response && response.stats) {
           this.updateStatsDisplay(response.stats);
         }
@@ -85,6 +113,7 @@ class PopupController {
 
   private setupListeners() {
     this.enabledToggle.addEventListener('change', () => {
+      logger.info('Toggle changed in popup:', this.enabledToggle.checked);
       this.updateSettings({ enabled: this.enabledToggle.checked });
       this.updateSyncStatus(this.enabledToggle.checked);
     });
@@ -121,8 +150,34 @@ class PopupController {
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   }
 
-  private updateSettings(update: Partial<FilterSettings>) {
-    chrome.runtime.sendMessage({ type: 'UPDATE_SETTINGS', settings: update });
+  private async updateSettings(update: Partial<FilterSettings>) {
+    // Send to content script directly
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const activeTab = tabs[0];
+    
+    if (activeTab?.id && activeTab.url?.includes('youtube.com')) {
+      chrome.tabs.sendMessage(activeTab.id!, { type: 'UPDATE_SETTINGS', settings: update }, () => {
+        if (chrome.runtime.lastError) {
+          logger.debug('Content script not ready:', chrome.runtime.lastError.message);
+        }
+      });
+    }
+    
+    // Also update storage directly to match content script
+    if (update.enabled !== undefined) {
+      await chrome.storage.sync.set({ filterEnabled: update.enabled });
+    }
+    if (update.minDuration !== undefined || update.maxDuration !== undefined) {
+      const current = await chrome.storage.sync.get('filterSettings');
+      const criteria = current.filterSettings || { minDuration: 300, maxDuration: 1800 };
+      if (update.minDuration !== undefined) {
+        criteria.minDuration = update.minDuration * 60;
+      }
+      if (update.maxDuration !== undefined) {
+        criteria.maxDuration = update.maxDuration * 60;
+      }
+      await chrome.storage.sync.set({ filterSettings: criteria });
+    }
   }
   
   private updateSyncStatus(enabled: boolean) {
@@ -158,7 +213,8 @@ class PopupController {
 
     // Show user section if logged in
     const userSection = document.getElementById('user-section');
-    const premiumSection = document.getElementById('premium-section');
+    // Premium section is available but not used in current implementation
+    // const premiumSection = document.getElementById('premium-section');
     
     if (user && userSection) {
       userSection.style.display = 'block';
@@ -290,6 +346,28 @@ class PopupController {
       }
     });
     
+    // Listen for storage changes to sync with header toggle
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+      logger.info('Storage changed:', namespace, changes);
+      if (namespace === 'sync') {
+        if (changes.filterEnabled) {
+          const enabled = changes.filterEnabled.newValue;
+          logger.info('Storage change detected - filterEnabled:', enabled);
+          this.enabledToggle.checked = enabled;
+          this.updateSyncStatus(enabled);
+        }
+        if (changes.filterSettings) {
+          const settings = changes.filterSettings.newValue;
+          if (settings) {
+            logger.debug('Storage change detected - filterSettings:', settings);
+            this.minSlider.value = Math.floor(settings.minDuration / 60).toString();
+            this.maxSlider.value = Math.floor(settings.maxDuration / 60).toString();
+            this.updateDisplayValues();
+          }
+        }
+      }
+    });
+    
     // Also refresh stats periodically while popup is open
     setInterval(() => {
       this.loadStats();
@@ -334,49 +412,6 @@ class PopupController {
       ">Upgrade</button>
     `;
     document.body.appendChild(upgradePrompt);
-  }
-
-  private async loadStats() {
-    // Get stats from storage
-    const stored = await chrome.storage.local.get(['stats']);
-    if (stored.stats) {
-      this.updateStatsDisplay(stored.stats);
-    }
-
-    // Request fresh stats from content script
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tabs[0]?.id && tabs[0].url?.includes('youtube.com')) {
-      chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATS' }, (stats) => {
-        // Check for errors (tab might not have content script)
-        if (chrome.runtime.lastError) {
-          console.debug('Content script not ready:', chrome.runtime.lastError.message);
-          return;
-        }
-        
-        if (stats) {
-          this.updateStatsDisplay(stats);
-        }
-      });
-    }
-  }
-
-  private updateStatsDisplay(stats: FilterStats) {
-    const videosValue = document.querySelector('.stat-card.videos .stat-value');
-    const timeValue = document.querySelector('.stat-card.time .stat-value');
-    
-    if (videosValue && stats.videosShown !== undefined && stats.videosHidden !== undefined) {
-      videosValue.textContent = `${stats.videosShown}/${stats.videosShown + stats.videosHidden}`;
-    }
-    
-    if (timeValue && stats.totalTimeHidden !== undefined) {
-      const hours = Math.floor(stats.totalTimeHidden / 3600);
-      const minutes = Math.floor((stats.totalTimeHidden % 3600) / 60);
-      if (hours > 0) {
-        timeValue.textContent = `${hours}h ${minutes}m`;
-      } else {
-        timeValue.textContent = `${minutes}m`;
-      }
-    }
   }
 
   private async setupPremiumFeatureHandlers() {

@@ -3,7 +3,7 @@
  * No dynamic imports, everything is self-contained
  */
 
-import { DOMBuilder, createElement } from '../utils/safe-dom';
+import { DOMBuilder, createElement } from '../../utils/dom-builder';
 
 export class InlinePaywall {
   static async show(feature: string): Promise<boolean> {

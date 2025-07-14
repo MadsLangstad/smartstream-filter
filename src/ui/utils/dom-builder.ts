@@ -4,13 +4,6 @@
  */
 
 /**
- * Safely set text content (automatically escapes HTML)
- */
-export function setTextContent(element: HTMLElement, text: string): void {
-  element.textContent = text;
-}
-
-/**
  * Create element with safe HTML structure
  */
 export function createElement<K extends keyof HTMLElementTagNameMap>(
@@ -105,51 +98,4 @@ export class DOMBuilder {
   build(): HTMLElement {
     return this.element;
   }
-}
-
-/**
- * Sanitize HTML string (basic implementation)
- * For production, use DOMPurify or similar library
- */
-export function sanitizeHTML(html: string): string {
-  const temp = document.createElement('div');
-  temp.textContent = html;
-  return temp.innerHTML;
-}
-
-/**
- * Create SVG element safely
- */
-export function createSVGElement(
-  tag: string,
-  attributes?: Record<string, string>
-): SVGElement {
-  const element = document.createElementNS('http://www.w3.org/2000/svg', tag);
-  
-  if (attributes) {
-    Object.entries(attributes).forEach(([key, value]) => {
-      element.setAttribute(key, value);
-    });
-  }
-  
-  return element;
-}
-
-/**
- * Helper to create icon elements
- */
-export function createIcon(iconPath: string, size = 24): SVGElement {
-  const svg = createSVGElement('svg', {
-    width: size.toString(),
-    height: size.toString(),
-    viewBox: `0 0 ${size} ${size}`,
-    fill: 'currentColor'
-  });
-  
-  const path = createSVGElement('path', {
-    d: iconPath
-  });
-  
-  svg.appendChild(path);
-  return svg;
 }

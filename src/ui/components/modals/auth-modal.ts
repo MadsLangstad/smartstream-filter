@@ -3,9 +3,9 @@
  * Smooth login/signup flow with great UX
  */
 
-import type { User, License } from '../paywall-manager';
+import type { User, License } from '../../../services/paywall/paywall-manager';
 import { config, isDemo } from '../../../config/environment';
-import { DemoAPI } from '../demo-api';
+import { DemoAPI } from '../../../services/paywall/demo-api';
 import type { AuthResponse } from '../../../types/api';
 
 export interface AuthModalResult {

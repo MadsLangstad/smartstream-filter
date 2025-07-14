@@ -18,6 +18,7 @@ export interface ISettingsRepository {
   saveFilterCriteria(criteria: FilterCriteria): Promise<void>;
   isEnabled(): Promise<boolean>;
   setEnabled(enabled: boolean): Promise<void>;
+  onChange(callback: (criteria: FilterCriteria, enabled: boolean) => void): void;
 }
 
 export interface IUserRepository {

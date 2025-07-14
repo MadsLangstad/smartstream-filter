@@ -3,15 +3,20 @@
  */
 
 import { createContainer } from '../core/infrastructure/container';
-import { HeaderControls } from '../features/filtering/header-controls';
+import { HeaderControls } from '../ui/components/controls/header-controls';
 import { OptimizedObserver } from './optimized-observer';
 import { FilterCriteria } from '../core/domain/filter';
+import { PerformanceMonitor } from '../utils/performance-monitor';
+import { InlinePaywall } from '../ui/components/modals/inline-paywall';
 
 export class SmartStreamApp {
   private container = createContainer();
   private headerControls: HeaderControls | null = null;
   private observer: OptimizedObserver | null = null;
   private initialized = false;
+  // VideoCache is available for future use
+  // private videoCache = VideoCache.getInstance();
+  private performanceMonitor = PerformanceMonitor.getInstance();
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -26,6 +31,16 @@ export class SmartStreamApp {
       // Check premium status
       const userPlan = await chrome.storage.sync.get(['userPlan']);
       const isPremium = userPlan.userPlan?.type === 'premium';
+      
+      // Load premium filters if available
+      if (isPremium) {
+        const premiumFilters = await chrome.storage.sync.get(['premiumFilters']);
+        if (premiumFilters.premiumFilters) {
+          criteria.keywordFilters = premiumFilters.premiumFilters.keywords || [];
+          criteria.channelFilters = premiumFilters.premiumFilters.channels || [];
+          await this.container.settingsRepository.saveFilterCriteria(criteria);
+        }
+      }
 
       // Wait for header
       await this.waitForHeader();
@@ -50,17 +65,25 @@ export class SmartStreamApp {
 
       // Listen for storage changes
       this.container.settingsRepository.onChange(async (criteria, enabled) => {
+        // Update header controls when storage changes
+        if (this.headerControls) {
+          this.headerControls.updateEnabled(enabled);
+          this.headerControls.updateCriteriaValues(criteria);
+        }
         await this.filterVideos();
       });
 
       // Listen for messages from popup/background
-      chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         this.handleMessage(message, sendResponse);
         return true; // Keep channel open for async response
       });
 
       this.initialized = true;
       console.log('[SmartStream] Initialization complete');
+      
+      // Start performance monitoring
+      this.performanceMonitor.start();
 
     } catch (error) {
       console.error('[SmartStream] Initialization failed:', error);
@@ -89,7 +112,7 @@ export class SmartStreamApp {
   }
 
   private setupObserver(): void {
-    this.observer = new OptimizedObserver(async (videos) => {
+    this.observer = new OptimizedObserver(async (_videos) => {
       // Process only new videos through our use case
       const criteria = await this.container.settingsRepository.getFilterCriteria();
       const enabled = await this.container.settingsRepository.isEnabled();
@@ -147,7 +170,46 @@ export class SmartStreamApp {
         }
         await this.filterVideos();
         break;
+        
+      case 'SETTINGS_UPDATED':
+        await this.filterVideos();
+        sendResponse({ success: true });
+        break;
+        
+      case 'SHOW_PAYWALL':
+        await InlinePaywall.show(message.feature || 'Premium Feature');
+        break;
+        
+      case 'GET_STATS':
+        const stats = await this.getStats();
+        sendResponse(stats);
+        break;
+        
+      case 'UPDATE_PREMIUM_FILTERS':
+        if (message.filters) {
+          const criteria = await this.container.settingsRepository.getFilterCriteria();
+          criteria.keywordFilters = message.filters.keywords || [];
+          criteria.channelFilters = message.filters.channels || [];
+          await this.container.settingsRepository.saveFilterCriteria(criteria);
+          await this.filterVideos();
+        }
+        break;
     }
+  }
+  
+  private async getStats(): Promise<any> {
+    // Get stats from the last filter operation
+    return new Promise((resolve) => {
+      this.container.eventBus.once('videos-filtered', (data: any) => {
+        resolve({
+          videosShown: data.shown.length,
+          videosHidden: data.hidden.length,
+          totalTimeHidden: data.totalTimeSaved
+        });
+      });
+      // Trigger a filter to get current stats
+      this.filterVideos();
+    });
   }
 
   destroy(): void {
