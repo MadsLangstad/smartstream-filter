@@ -74,8 +74,9 @@ export const config = {
 // Type-safe feature flags
 export const features = {
   advancedFilters: 'advanced_filters',
-  keywordFilters: 'keyword_filters',
-  channelFilters: 'channel_filters',
+  keywords: 'keywords',
+  channels: 'channels',
+  excludeChannels: 'exclude_channels',
   analytics: 'analytics',
   apiAccess: 'api_access',
   customPresets: 'custom_presets',

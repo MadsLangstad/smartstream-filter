@@ -7,14 +7,12 @@ import { Video } from './video';
 export interface FilterCriteria {
   minDuration?: number; // seconds
   maxDuration?: number; // seconds
-  keywords?: string[];
-  channels?: string[];
-  excludeChannels?: string[];
-  uploadedAfter?: Date;
-  minViews?: number;
-  maxViews?: number;
-  keywordFilters?: string[]; // Premium: filter videos by keywords in title
-  channelFilters?: string[]; // Premium: block specific channels
+  keywords?: string[]; // Premium: filter videos by keywords in title
+  channels?: string[]; // Premium: include specific channels
+  excludeChannels?: string[]; // Premium: exclude specific channels
+  uploadedAfter?: Date; // Premium: filter by upload date
+  minViews?: number; // Premium: minimum view count
+  maxViews?: number; // Premium: maximum view count
 }
 
 export abstract class Filter {
@@ -41,27 +39,73 @@ export class DurationFilter extends Filter {
 
 export class KeywordFilter extends Filter {
   matches(video: Video): boolean {
-    if (!this.criteria.keywordFilters || this.criteria.keywordFilters.length === 0) {
+    if (!this.criteria.keywords || this.criteria.keywords.length === 0) {
       return true;
     }
     
     const title = video.metadata.title.toLowerCase();
-    return this.criteria.keywordFilters.some(keyword => 
+    const hasMatch = this.criteria.keywords.some(keyword => 
       title.includes(keyword.toLowerCase())
     );
+    
+    // Debug logging
+    if (!hasMatch) {
+      console.log(`[SmartStream] Video "${video.metadata.title}" filtered by keywords: ${this.criteria.keywords.join(', ')}`);
+    }
+    
+    return hasMatch;
   }
 }
 
-export class ChannelFilter extends Filter {
+export class ChannelIncludeFilter extends Filter {
   matches(video: Video): boolean {
-    if (!this.criteria.channelFilters || this.criteria.channelFilters.length === 0) {
+    if (!this.criteria.channels || this.criteria.channels.length === 0) {
       return true;
     }
     
     const channelName = (video.metadata.channelName || video.metadata.channel || '').toLowerCase();
-    return !this.criteria.channelFilters.some(channel => 
+    return this.criteria.channels.some(channel => 
       channelName.includes(channel.toLowerCase())
     );
+  }
+}
+
+export class ChannelExcludeFilter extends Filter {
+  matches(video: Video): boolean {
+    if (!this.criteria.excludeChannels || this.criteria.excludeChannels.length === 0) {
+      return true;
+    }
+    
+    const channelName = (video.metadata.channelName || video.metadata.channel || '').toLowerCase();
+    return !this.criteria.excludeChannels.some(channel => 
+      channelName.includes(channel.toLowerCase())
+    );
+  }
+}
+
+export class DateFilter extends Filter {
+  matches(video: Video): boolean {
+    if (!this.criteria.uploadedAfter || !video.metadata.uploadDate) {
+      return true;
+    }
+    
+    return video.metadata.uploadDate >= this.criteria.uploadedAfter;
+  }
+}
+
+export class ViewCountFilter extends Filter {
+  matches(video: Video): boolean {
+    if (!video.metadata.viewCount) return true;
+    
+    if (this.criteria.minViews && video.metadata.viewCount < this.criteria.minViews) {
+      return false;
+    }
+    
+    if (this.criteria.maxViews && video.metadata.viewCount > this.criteria.maxViews) {
+      return false;
+    }
+    
+    return true;
   }
 }
 
@@ -71,6 +115,7 @@ export class CompositeFilter extends Filter {
   constructor(criteria: FilterCriteria) {
     super(criteria);
     this.buildFilters();
+    console.log('[SmartStream] Active filters:', this.filters.map(f => f.constructor.name));
   }
 
   private buildFilters() {
@@ -80,13 +125,28 @@ export class CompositeFilter extends Filter {
     }
 
     // Keyword filter (premium)
-    if (this.criteria.keywordFilters && this.criteria.keywordFilters.length > 0) {
+    if (this.criteria.keywords && this.criteria.keywords.length > 0) {
       this.filters.push(new KeywordFilter(this.criteria));
     }
 
-    // Channel filter (premium)
-    if (this.criteria.channelFilters && this.criteria.channelFilters.length > 0) {
-      this.filters.push(new ChannelFilter(this.criteria));
+    // Channel include filter (premium)
+    if (this.criteria.channels && this.criteria.channels.length > 0) {
+      this.filters.push(new ChannelIncludeFilter(this.criteria));
+    }
+
+    // Channel exclude filter (premium)
+    if (this.criteria.excludeChannels && this.criteria.excludeChannels.length > 0) {
+      this.filters.push(new ChannelExcludeFilter(this.criteria));
+    }
+
+    // Date filter (premium)
+    if (this.criteria.uploadedAfter) {
+      this.filters.push(new DateFilter(this.criteria));
+    }
+
+    // View count filter (premium)
+    if (this.criteria.minViews || this.criteria.maxViews) {
+      this.filters.push(new ViewCountFilter(this.criteria));
     }
   }
 

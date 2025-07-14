@@ -36,8 +36,9 @@ export class SmartStreamApp {
       if (isPremium) {
         const premiumFilters = await chrome.storage.sync.get(['premiumFilters']);
         if (premiumFilters.premiumFilters) {
-          criteria.keywordFilters = premiumFilters.premiumFilters.keywords || [];
-          criteria.channelFilters = premiumFilters.premiumFilters.channels || [];
+          criteria.keywords = premiumFilters.premiumFilters.keywords || [];
+          criteria.channels = premiumFilters.premiumFilters.channels || [];
+          criteria.excludeChannels = premiumFilters.premiumFilters.excludeChannels || [];
           await this.container.settingsRepository.saveFilterCriteria(criteria);
         }
       }
@@ -188,8 +189,27 @@ export class SmartStreamApp {
       case 'UPDATE_PREMIUM_FILTERS':
         if (message.filters) {
           const criteria = await this.container.settingsRepository.getFilterCriteria();
-          criteria.keywordFilters = message.filters.keywords || [];
-          criteria.channelFilters = message.filters.channels || [];
+          
+          // Update all filter properties
+          if (message.filters.keywords !== undefined) {
+            criteria.keywords = message.filters.keywords;
+          }
+          if (message.filters.channels !== undefined) {
+            criteria.channels = message.filters.channels;
+          }
+          if (message.filters.excludeChannels !== undefined) {
+            criteria.excludeChannels = message.filters.excludeChannels;
+          }
+          if (message.filters.uploadedAfter !== undefined) {
+            criteria.uploadedAfter = message.filters.uploadedAfter;
+          }
+          if (message.filters.minViews !== undefined) {
+            criteria.minViews = message.filters.minViews;
+          }
+          if (message.filters.maxViews !== undefined) {
+            criteria.maxViews = message.filters.maxViews;
+          }
+          
           await this.container.settingsRepository.saveFilterCriteria(criteria);
           await this.filterVideos();
         }

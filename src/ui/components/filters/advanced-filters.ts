@@ -1,75 +1,8 @@
 /**
- * Advanced filters - Premium feature
+ * Advanced filters UI - Premium feature
  */
 
-import { Filter, FilterCriteria } from '../../../core/domain/filter';
-import { Video } from '../../../core/domain/video';
-
-export class KeywordFilter extends Filter {
-  matches(video: Video): boolean {
-    if (!this.criteria.keywords || this.criteria.keywords.length === 0) {
-      return true;
-    }
-
-    const title = video.metadata.title.toLowerCase();
-    return this.criteria.keywords.some(keyword => 
-      title.includes(keyword.toLowerCase())
-    );
-  }
-}
-
-export class ChannelFilter extends Filter {
-  // Premium feature: Channel Filtering
-  matches(video: Video): boolean {
-    if (!video.metadata.channel) return true;
-
-    // Include channels
-    if (this.criteria.channels && this.criteria.channels.length > 0) {
-      const included = this.criteria.channels.some(channel =>
-        video.metadata.channel!.toLowerCase().includes(channel.toLowerCase())
-      );
-      if (!included) return false;
-    }
-
-    // Exclude channels
-    if (this.criteria.excludeChannels && this.criteria.excludeChannels.length > 0) {
-      const excluded = this.criteria.excludeChannels.some(channel =>
-        video.metadata.channel!.toLowerCase().includes(channel.toLowerCase())
-      );
-      if (excluded) return false;
-    }
-
-    return true;
-  }
-}
-
-export class DateFilter extends Filter {
-  // Premium feature: Upload Date Filtering
-  matches(video: Video): boolean {
-    if (!this.criteria.uploadedAfter || !video.metadata.uploadDate) {
-      return true;
-    }
-
-    return video.metadata.uploadDate >= this.criteria.uploadedAfter;
-  }
-}
-
-export class ViewCountFilter extends Filter {
-  // Premium feature: View Count Filtering
-  matches(video: Video): boolean {
-    if (!video.metadata.viewCount) return true;
-
-    if (this.criteria.minViews && video.metadata.viewCount < this.criteria.minViews) {
-      return false;
-    }
-
-    if (this.criteria.maxViews && video.metadata.viewCount > this.criteria.maxViews) {
-      return false;
-    }
-
-    return true;
-  }
-}
+import { FilterCriteria } from '../../../core/domain/filter';
 
 // Premium filter UI component
 export class AdvancedFilterPanel {

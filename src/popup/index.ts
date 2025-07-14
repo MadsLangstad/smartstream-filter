@@ -416,13 +416,13 @@ class PopupController {
 
   private async setupPremiumFeatureHandlers() {
     // Load saved premium filters
-    const stored = await chrome.storage.local.get(['keywordFilters', 'channelFilters']);
+    const stored = await chrome.storage.local.get(['keywords', 'channels', 'excludeChannels']);
     
     // Keyword filter
     const keywordInput = document.getElementById('keyword-filter') as HTMLInputElement;
     if (keywordInput) {
-      if (stored.keywordFilters) {
-        keywordInput.value = stored.keywordFilters;
+      if (stored.keywords) {
+        keywordInput.value = stored.keywords;
       }
       
       // Save on change with debounce
@@ -431,7 +431,7 @@ class PopupController {
         clearTimeout(keywordTimer);
         keywordTimer = window.setTimeout(() => {
           const keywords = keywordInput.value.trim();
-          chrome.storage.local.set({ keywordFilters: keywords });
+          chrome.storage.local.set({ keywords: keywords });
           // Notify content script
           chrome.runtime.sendMessage({ 
             type: 'UPDATE_PREMIUM_FILTERS', 
@@ -444,8 +444,8 @@ class PopupController {
     // Channel filter
     const channelInput = document.getElementById('channel-filter') as HTMLInputElement;
     if (channelInput) {
-      if (stored.channelFilters) {
-        channelInput.value = stored.channelFilters;
+      if (stored.channels) {
+        channelInput.value = stored.channels;
       }
       
       // Save on change with debounce
@@ -454,7 +454,7 @@ class PopupController {
         clearTimeout(channelTimer);
         channelTimer = window.setTimeout(() => {
           const channels = channelInput.value.trim();
-          chrome.storage.local.set({ channelFilters: channels });
+          chrome.storage.local.set({ channels: channels });
           // Notify content script
           chrome.runtime.sendMessage({ 
             type: 'UPDATE_PREMIUM_FILTERS', 
