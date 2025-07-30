@@ -26,6 +26,8 @@ export class FilterVideosUseCase {
       // Get all videos from repository
       const videos = await this.videoRepository.getAllVisible();
       
+      console.log(`[SmartStream FilterUseCase] Processing ${videos.length} videos, enabled: ${enabled}`);
+      
       if (!enabled) {
         // Show all videos
         videos.forEach(video => this.videoRepository.show(video));
@@ -52,7 +54,9 @@ export class FilterVideosUseCase {
         
         // Process batch
         for (const video of batch) {
-          if (filter.matches(video)) {
+          const matches = filter.matches(video);
+          
+          if (matches) {
             this.videoRepository.show(video);
             result.shown.push(video);
           } else {
@@ -66,6 +70,8 @@ export class FilterVideosUseCase {
         this.performanceMonitor.recordVideosProcessed(batch.length);
       }
 
+      console.log(`[SmartStream FilterUseCase] Results - Shown: ${result.shown.length}, Hidden: ${result.hidden.length}`);
+      
       // Emit event
       this.eventBus.emit('videos-filtered', result);
 

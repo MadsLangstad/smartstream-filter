@@ -13,17 +13,26 @@ interface CacheEntry {
 }
 
 export class VideoCache {
+  private static instance: VideoCache;
+  
   // WeakMap for automatic garbage collection of video elements
   private elementCache = new WeakMap<Element, boolean>();
   
   // LRU cache for video durations with max size limit
   private durationCache = new Map<string, CacheEntry>();
-  private readonly MAX_CACHE_SIZE = 500; // Reduced from 1000
-  private readonly CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+  private readonly MAX_CACHE_SIZE = 100; // Reduced from 500 to prevent memory issues
+  private readonly CACHE_TTL = 10 * 60 * 1000; // Reduced from 30 to 10 minutes
   
   // Performance tracking
   private hits = 0;
   private misses = 0;
+  
+  static getInstance(): VideoCache {
+    if (!VideoCache.instance) {
+      VideoCache.instance = new VideoCache();
+    }
+    return VideoCache.instance;
+  }
   
   /**
    * Check if a video has been processed
@@ -172,6 +181,16 @@ export class VideoCache {
   }
   
   /**
+   * Set video data in cache
+   */
+  setVideoData(video: Element, data: { duration: number }): void {
+    const videoId = this.getVideoId(video);
+    if (videoId && data.duration > 0) {
+      this.setDuration(videoId, data.duration);
+    }
+  }
+  
+  /**
    * Extract video ID from element
    */
   private getVideoId(video: Element): string | null {
@@ -208,7 +227,7 @@ export class VideoCache {
 }
 
 // Singleton instance
-export const videoCache = new VideoCache();
+export const videoCache = VideoCache.getInstance();
 
 // Clean expired entries every 5 minutes
 setInterval(() => {

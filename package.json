@@ -9,7 +9,7 @@
     "build": "tsc && npm run build:modules && npm run build:content && npm run copy:static",
     "build:modules": "vite build",
     "build:content": "vite build --config vite.config.content.ts",
-    "copy:static": "cp src/popup/popup.html dist/popup.html",
+    "copy:static": "cp src/popup/popup.html dist/popup.html && cp src/onboarding/onboarding.html dist/onboarding.html && cp src/onboarding/onboarding.js dist/onboarding.js",
     "build:ext": "./build.sh",
     "build:clean": "./build.sh --clean",
     "typecheck": "tsc --noEmit",

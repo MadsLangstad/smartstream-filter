@@ -8,7 +8,7 @@ import { VideoMetadata } from '../../core/domain/video';
 export class YouTubeAdapter extends BasePlatformAdapter {
   private readonly selectors = {
     videos: 'ytd-video-renderer, ytd-grid-video-renderer, ytd-rich-item-renderer',
-    duration: 'span.ytd-thumbnail-overlay-time-status-renderer, ytd-thumbnail-overlay-time-status-renderer',
+    duration: 'span.ytd-thumbnail-overlay-time-status-renderer, ytd-thumbnail-overlay-time-status-renderer, span.style-scope.ytd-thumbnail-overlay-time-status-renderer, #overlays ytd-thumbnail-overlay-time-status-renderer span, ytd-thumbnail-overlay-time-status-renderer[aria-label]',
     title: '#video-title',
     channel: '#channel-name',
     views: '#metadata-line span:first-child',
@@ -26,14 +26,34 @@ export class YouTubeAdapter extends BasePlatformAdapter {
 
   extractMetadata(element: Element): VideoMetadata | null {
     const durationElement = element.querySelector(this.selectors.duration);
-    if (!durationElement) return null;
-
     const titleElement = element.querySelector(this.selectors.title);
     const channelElement = element.querySelector(this.selectors.channel);
     const viewsElement = element.querySelector(this.selectors.views);
 
-    const durationText = durationElement.textContent?.trim() || '';
-    const duration = this.parseDuration(durationText);
+    // If we don't have a title, the video is likely not fully loaded
+    if (!titleElement?.textContent?.trim()) return null;
+
+    // Parse duration, defaulting to 0 if not available yet
+    let duration = 0;
+    if (durationElement) {
+      // Try text content first
+      let durationText = durationElement.textContent?.trim() || '';
+      
+      // If no text content, try aria-label attribute
+      if (!durationText && durationElement.hasAttribute('aria-label')) {
+        durationText = durationElement.getAttribute('aria-label') || '';
+      }
+      
+      // Also check for nested span elements
+      if (!durationText) {
+        const innerSpan = durationElement.querySelector('span');
+        if (innerSpan) {
+          durationText = innerSpan.textContent?.trim() || '';
+        }
+      }
+      
+      duration = this.parseDuration(durationText);
+    }
 
     // Extract view count and upload date from metadata line
     const viewCount = this.parseViewCount(viewsElement?.textContent || '');
@@ -41,16 +61,23 @@ export class YouTubeAdapter extends BasePlatformAdapter {
 
     const channelName = channelElement?.textContent?.trim();
     
-    return {
+    const metadata: VideoMetadata = {
       id: this.generateId(element),
-      title: titleElement?.textContent?.trim() || 'Unknown',
+      title: titleElement.textContent.trim(),
       duration,
       channel: channelName,
       channelName: channelName, // Add channelName for compatibility
       viewCount,
       uploadDate,
-      platform: 'youtube'
+      platform: 'youtube' as const
     };
+    
+    // Debug log for videos with missing duration
+    if (duration === 0 && !this.isLiveVideo(element)) {
+      console.log(`[YouTubeAdapter] Video "${metadata.title}" has no duration yet`);
+    }
+    
+    return metadata;
   }
 
   injectControls(container: Element): void {
@@ -68,16 +95,33 @@ export class YouTubeAdapter extends BasePlatformAdapter {
   }
 
   private parseDuration(durationText: string): number {
+    // Clean the text and handle edge cases
     const cleanText = durationText.trim().split('\n')[0]?.trim() || '';
-    const parts = cleanText.split(':').map(p => parseInt(p));
     
-    if (parts.length === 3) {
-      return (parts[0] || 0) * 3600 + (parts[1] || 0) * 60 + (parts[2] || 0);
-    } else if (parts.length === 2) {
-      return (parts[0] || 0) * 60 + (parts[1] || 0);
-    } else if (parts.length === 1) {
-      return parts[0] || 0;
+    // Handle special cases like "LIVE", "UPCOMING", etc.
+    if (cleanText.toUpperCase().includes('LIVE') || 
+        cleanText.toUpperCase().includes('UPCOMING') ||
+        cleanText.toUpperCase().includes('PREMIERE')) {
+      return 0; // Treat live/upcoming videos as 0 duration
     }
+    
+    // Parse time parts
+    const parts = cleanText.split(':').map(p => {
+      const parsed = parseInt(p, 10);
+      return isNaN(parsed) ? 0 : parsed;
+    });
+    
+    if (parts.length === 3 && parts[0] !== undefined && parts[1] !== undefined && parts[2] !== undefined) {
+      // HH:MM:SS format
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    } else if (parts.length === 2 && parts[0] !== undefined && parts[1] !== undefined) {
+      // MM:SS format
+      return parts[0] * 60 + parts[1];
+    } else if (parts.length === 1 && parts[0] !== undefined && parts[0] > 0) {
+      // Just seconds
+      return parts[0];
+    }
+    
     return 0;
   }
 
@@ -184,5 +228,22 @@ export class YouTubeAdapter extends BasePlatformAdapter {
     }
     
     return super.generateId(element);
+  }
+  
+  private isLiveVideo(element: Element): boolean {
+    // Check for live badge indicators
+    const liveIndicators = element.querySelectorAll(
+      'span.ytd-badge-supported-renderer, ' +
+      'ytd-badge-supported-renderer'
+    );
+    
+    for (const indicator of liveIndicators) {
+      const text = indicator.textContent?.toUpperCase() || '';
+      if (text.includes('LIVE') || text.includes('PREMIERE')) {
+        return true;
+      }
+    }
+    
+    return false;
   }
 }

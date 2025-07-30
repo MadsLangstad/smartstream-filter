@@ -25,15 +25,22 @@ export class DurationFilter extends Filter {
   matches(video: Video): boolean {
     const duration = video.metadata.duration;
     
-    if (this.criteria.minDuration && duration < this.criteria.minDuration) {
-      return false;
+    // If duration is 0 (not loaded yet or live video), don't filter it out
+    // This ensures videos are shown until their duration can be determined
+    if (duration === 0) {
+      return true;
     }
     
-    if (this.criteria.maxDuration && duration > this.criteria.maxDuration) {
-      return false;
+    const minOk = !this.criteria.minDuration || duration >= this.criteria.minDuration;
+    const maxOk = !this.criteria.maxDuration || duration <= this.criteria.maxDuration;
+    const result = minOk && maxOk;
+    
+    // Debug logging for videos that don't match
+    if (!result) {
+      console.log(`[DurationFilter] Hiding video "${video.metadata.title}" - Duration: ${duration}s, Bounds: [${this.criteria.minDuration ?? 'none'}-${this.criteria.maxDuration ?? 'none'}]`);
     }
     
-    return true;
+    return result;
   }
 }
 

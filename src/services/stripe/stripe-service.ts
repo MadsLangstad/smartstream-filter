@@ -56,8 +56,6 @@ export class StripeService {
    */
   async createCheckoutSession(options: CreateCheckoutOptions): Promise<APIResponse<CheckoutSession>> {
     try {
-      const priceId = this.getPriceId(options.planId);
-      
       // Get the current page URL for success/cancel redirects
       // Use window.location in content script context, fallback to YouTube
       const baseUrl = typeof window !== 'undefined' && window.location 
@@ -71,19 +69,15 @@ export class StripeService {
           'X-Extension-Version': chrome.runtime.getManifest().version
         },
         body: JSON.stringify({
-          priceId,
-          mode: options.planId === 'lifetime' ? 'payment' : 'subscription',
+          email: options.email,
+          planId: options.planId,
           successUrl: options.successUrl || `${baseUrl}?smartstream_success=true&plan=${options.planId}`,
           cancelUrl: options.cancelUrl || window.location?.href || baseUrl,
-          customerEmail: options.email,
           metadata: {
             userId: options.userId || '',
-            planId: options.planId,
             extensionId: chrome.runtime.id,
             ...options.metadata
-          },
-          clientReferenceId: options.userId || options.email,
-          allowPromotionCodes: true
+          }
         })
       });
       
@@ -214,18 +208,6 @@ export class StripeService {
     }
   }
   
-  /**
-   * Get price ID for plan
-   */
-  private getPriceId(planId: 'basic' | 'pro' | 'lifetime'): string {
-    const priceMap = {
-      basic: STRIPE_CONFIG.priceIds.basic_monthly,
-      pro: STRIPE_CONFIG.priceIds.pro_monthly,
-      lifetime: STRIPE_CONFIG.priceIds.lifetime
-    };
-    
-    return priceMap[planId];
-  }
   
   /**
    * Get auth token from storage

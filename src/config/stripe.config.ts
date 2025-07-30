@@ -11,7 +11,7 @@ export const STRIPE_CONFIG = {
   publishableKey: import.meta.env.VITE_STRIPE_PUBLIC_KEY || 'pk_test_51234567890abcdefghijklmnopqrstuvwxyz',
   
   // API Base URL for your backend
-  apiBaseUrl: import.meta.env.VITE_API_URL || 'https://api.smartstreamfilter.com',
+  apiBaseUrl: import.meta.env.VITE_API_URL || 'http://localhost:3001/api/v1',
   
   // Stripe Price IDs for your products
   // Create these in your Stripe Dashboard under Products

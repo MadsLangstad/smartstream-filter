@@ -11,8 +11,8 @@ export class OptimizedObserver {
   constructor(
     private onVideosFound: (videos: Element[]) => void,
     private options: { debounceMs: number; batchSize: number } = {
-      debounceMs: 100,
-      batchSize: 20
+      debounceMs: 250,  // Increased from 100ms for better batching
+      batchSize: 10    // Reduced from 20 to process smaller chunks
     }
   ) {}
   
@@ -24,7 +24,8 @@ export class OptimizedObserver {
       this.handleMutations(mutations);
     });
     
-    const targetNode = document.querySelector('ytd-app') || document.body;
+    // Target more specific containers to reduce noise
+    const targetNode = document.querySelector('#contents, ytd-app') || document.body;
     
     // Only observe specific changes
     this.observer.observe(targetNode, {
@@ -41,10 +42,13 @@ export class OptimizedObserver {
    */
   private handleMutations(mutations: MutationRecord[]) {
     let hasNewVideos = false;
+    let mutationCount = 0;
     
     for (const mutation of mutations) {
       // Skip if no added nodes
       if (!mutation.addedNodes.length) continue;
+      
+      mutationCount++;
       
       // Check each added node
       for (const node of Array.from(mutation.addedNodes)) {
@@ -69,6 +73,11 @@ export class OptimizedObserver {
       }
     }
     
+    // Debug logging
+    if (hasNewVideos) {
+      console.log(`[SmartStream Observer] Found ${this.pendingVideos.size} new videos from ${mutationCount} mutations`);
+    }
+    
     // Only schedule processing if we found new videos
     if (hasNewVideos && !this.processTimer) {
       this.scheduleProcessing();
@@ -80,9 +89,14 @@ export class OptimizedObserver {
    */
   private isVideoElement(element: Element): boolean {
     const tagName = element.tagName.toLowerCase();
-    return tagName === 'ytd-video-renderer' ||
-           tagName === 'ytd-grid-video-renderer' ||
-           tagName === 'ytd-rich-item-renderer';
+    // More specific check to avoid false positives
+    if (tagName === 'ytd-video-renderer' ||
+        tagName === 'ytd-grid-video-renderer' ||
+        tagName === 'ytd-rich-item-renderer') {
+      // Verify it actually contains video content
+      return element.querySelector('#video-title, a#thumbnail') !== null;
+    }
+    return false;
   }
   
   /**
@@ -106,6 +120,8 @@ export class OptimizedObserver {
     // Process in batches
     const videos = Array.from(this.pendingVideos);
     this.pendingVideos.clear();
+    
+    console.log(`[SmartStream Observer] Processing ${videos.length} pending videos`);
     
     // Process in chunks to avoid blocking
     for (let i = 0; i < videos.length; i += this.options.batchSize) {

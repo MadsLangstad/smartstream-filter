@@ -7,7 +7,7 @@ import { IVideoRepository } from '../shared/interfaces/repositories';
 import { VideoCache } from '../content/video-cache';
 
 export abstract class BasePlatformAdapter implements IVideoRepository {
-  protected cache = new VideoCache();
+  protected cache = VideoCache.getInstance();
   protected videos = new Map<string, Video>();
 
   abstract getPlatformName(): string;
@@ -18,29 +18,30 @@ export abstract class BasePlatformAdapter implements IVideoRepository {
   async getAllVisible(): Promise<Video[]> {
     const elements = this.findVideoElements();
     const videos: Video[] = [];
+    
+    // Clear old videos that are no longer in DOM
+    const currentIds = new Set<string>();
 
     for (const element of elements) {
-      const cached = this.cache.getVideoData(element);
-      
-      if (cached) {
-        // Use cached data
-        const video = new Video({
-          id: this.generateId(element),
-          title: (cached as any).title || '',
-          duration: cached.duration,
-          platform: this.getPlatformName() as any
-        }, element);
-        
+      // Always extract fresh metadata to handle YouTube's DOM reuse
+      const metadata = this.extractMetadata(element);
+      if (metadata) {
+        const video = new Video(metadata, element);
         videos.push(video);
+        currentIds.add(video.metadata.id);
         this.videos.set(video.metadata.id, video);
-      } else {
-        // Extract fresh metadata
-        const metadata = this.extractMetadata(element);
-        if (metadata) {
-          const video = new Video(metadata, element);
-          videos.push(video);
-          this.videos.set(video.metadata.id, video);
+        
+        // Cache the video data if duration is available
+        if (metadata.duration > 0) {
+          this.cache.setVideoData(element, { duration: metadata.duration });
         }
+      }
+    }
+    
+    // Remove videos that are no longer in the DOM
+    for (const [id, _] of this.videos) {
+      if (!currentIds.has(id)) {
+        this.videos.delete(id);
       }
     }
 

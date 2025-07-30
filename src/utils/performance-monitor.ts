@@ -5,7 +5,7 @@
 import { createLogger } from './logger';
 import { IPerformanceMonitor, PerformanceMetrics as IPerformanceMetrics } from '../shared/interfaces/performance';
 
-const logger = createLogger('Performance', { enableInProduction: true });
+const logger = createLogger('Performance', { enableInProduction: false });
 
 interface PerformanceMetrics extends IPerformanceMetrics {
   filterTime: number;
@@ -108,10 +108,9 @@ export class PerformanceMonitor implements IPerformanceMonitor {
   /**
    * Start performance monitoring
    */
-  startMonitoring(intervalMs = 10000) {
-    setInterval(() => {
-      this.logReport();
-    }, intervalMs);
+  startMonitoring(_intervalMs = 60000) { // Changed from 10s to 60s
+    // Disable in production to save resources
+    return; // Performance monitoring disabled for better performance
   }
   
   /**

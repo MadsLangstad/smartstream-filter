@@ -22,9 +22,8 @@ class Logger {
   private isDevelopment: boolean;
 
   constructor(config: Partial<LoggerConfig> = {}) {
-    this.isDevelopment = process.env['NODE_ENV'] === 'development' || 
-                         (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version_name?.includes('dev')) ||
-                         false;
+    // Always disable logging to improve performance
+    this.isDevelopment = false;
     
     this.config = {
       level: this.isDevelopment ? LogLevel.DEBUG : LogLevel.ERROR,

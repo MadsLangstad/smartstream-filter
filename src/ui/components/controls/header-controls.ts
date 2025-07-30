@@ -161,6 +161,44 @@ export class HeaderControls {
     const advancedBtn = this.container.querySelector('.smartstream-advanced-btn');
     advancedBtn?.addEventListener('click', async () => {
       const paywallManager = PaywallManager.getInstance();
+      
+      // Check if we just came back from payment
+      const url = new URL(window.location.href);
+      const isPaymentReturn = url.searchParams.get('smartstream_success') === 'true' && url.searchParams.get('session_id');
+      
+      if (isPaymentReturn) {
+        // Show processing message
+        const { showInfoToast } = await import('../../components/feedback/toast');
+        showInfoToast('Your payment is being processed. Please wait a moment...');
+        
+        // Try to validate the license again
+        await paywallManager.validateLicense();
+        
+        // Wait a moment and check again
+        setTimeout(async () => {
+          const hasAccessAfterWait = await paywallManager.checkFeatureAccess('advanced_filters');
+          if (hasAccessAfterWait) {
+            // Open the filter panel
+            this.currentFilterPanel = new AdvancedFilterPanel(this.config.criteria, (update) => {
+              this.updateCriteria(update);
+            });
+            this.currentFilterPanel.show();
+            
+            // Set up a callback to clear the reference when panel is closed
+            const originalHide = this.currentFilterPanel.hide.bind(this.currentFilterPanel);
+            this.currentFilterPanel.hide = () => {
+              originalHide();
+              this.currentFilterPanel = null;
+            };
+          } else {
+            // If still no access after waiting, show paywall
+            await paywallManager.showPaywall('Advanced Filters');
+          }
+        }, 2000);
+        
+        return;
+      }
+      
       const hasAccess = await paywallManager.checkFeatureAccess('advanced_filters');
       
       if (!hasAccess) {

@@ -41,6 +41,8 @@ export class PaywallManager {
   private user: User | null = null;
   private license: License | null = null;
   private authToken: string | null = null;
+  // @ts-ignore - Will be used for payment processing state
+  private isPaymentProcessing: boolean = false;
   // @ts-ignore - Used for device management
   private _deviceId: string | null = null;
   
@@ -455,9 +457,28 @@ export class PaywallManager {
       const { StripeService } = await import('../stripe/stripe-service');
       const stripeService = StripeService.getInstance();
       
+      // Get email from user or prompt for it
+      let email = this.user?.email;
+      
+      if (!email) {
+        // Show email prompt modal
+        const { showEmailPrompt } = await import('../../ui/components/modals/email-prompt');
+        const promptResult = await showEmailPrompt();
+        
+        if (!promptResult || !promptResult.email) {
+          throw new Error('Email is required for checkout');
+        }
+        
+        email = promptResult.email;
+        
+        // Store email for future use
+        await chrome.storage.local.set({ userEmail: email });
+        this.user = { id: this.user?.id || 'pending', email };
+      }
+      
       const result = await stripeService.createCheckoutSession({
         planId: planId as 'basic' | 'pro' | 'lifetime',
-        email: this.user?.email || '',
+        email: email,
         userId: this.user?.id
       });
       

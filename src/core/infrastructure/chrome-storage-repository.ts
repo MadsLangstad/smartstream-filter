@@ -18,13 +18,29 @@ export class ChromeStorageRepository implements ISettingsRepository {
       maxDuration: 30 * 60, // 30 minutes in seconds
     };
 
-    return result[this.SETTINGS_KEY] || defaults;
+    const criteria = result[this.SETTINGS_KEY] || defaults;
+    
+    // Sync to localStorage for instant access
+    try {
+      localStorage.setItem('smartstream-filter-criteria', JSON.stringify(criteria));
+    } catch (e) {
+      console.warn('[SmartStream] Failed to sync to localStorage:', e);
+    }
+    
+    return criteria;
   }
 
   async saveFilterCriteria(criteria: FilterCriteria): Promise<void> {
     await chrome.storage.sync.set({
       [this.SETTINGS_KEY]: criteria
     });
+    
+    // Also save to localStorage for instant synchronous access
+    try {
+      localStorage.setItem('smartstream-filter-criteria', JSON.stringify(criteria));
+    } catch (e) {
+      console.warn('[SmartStream] Failed to save to localStorage:', e);
+    }
   }
 
   async isEnabled(): Promise<boolean> {
@@ -36,6 +52,13 @@ export class ChromeStorageRepository implements ISettingsRepository {
     await chrome.storage.sync.set({
       [this.ENABLED_KEY]: enabled
     });
+    
+    // Also save to localStorage for instant synchronous access
+    try {
+      localStorage.setItem('smartstream-filter-enabled', JSON.stringify(enabled));
+    } catch (e) {
+      console.warn('[SmartStream] Failed to save enabled state to localStorage:', e);
+    }
   }
 
   // Listen for changes

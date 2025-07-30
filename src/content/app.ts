@@ -17,6 +17,11 @@ export class SmartStreamApp {
   // VideoCache is available for future use
   // private videoCache = VideoCache.getInstance();
   private performanceMonitor = PerformanceMonitor.getInstance();
+  private videosWithMissingDuration = new Set<Element>();
+  private retryTimer: number | null = null;
+  private filterDebounceTimer: number | null = null;
+  private lastFilterTime = 0;
+  private quickHideStyleElement: HTMLStyleElement | null = null;
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -85,6 +90,12 @@ export class SmartStreamApp {
       
       // Start performance monitoring
       this.performanceMonitor.start();
+      
+      // Listen for YouTube navigation changes
+      this.setupNavigationListener();
+      
+      // Setup instant hide style element
+      this.setupInstantHideStyles();
 
     } catch (error) {
       console.error('[SmartStream] Initialization failed:', error);
@@ -113,17 +124,23 @@ export class SmartStreamApp {
   }
 
   private setupObserver(): void {
-    this.observer = new OptimizedObserver(async (_videos) => {
-      // Process only new videos through our use case
+    this.observer = new OptimizedObserver(async (newVideos) => {
+      console.log(`[SmartStream] Observer triggered, processing ${newVideos.length} new videos`);
+      
+      // Only process the new videos, not all videos on the page
       const criteria = await this.container.settingsRepository.getFilterCriteria();
       const enabled = await this.container.settingsRepository.isEnabled();
       
-      if (enabled) {
-        await this.container.filterVideosUseCase.execute(criteria, enabled);
+      if (enabled && newVideos.length > 0) {
+        // Process only the new videos
+        await this.filterNewVideos(newVideos, criteria);
       }
     });
 
     this.observer.start();
+    
+    // Setup chip button click detection
+    this.setupChipButtonListeners();
   }
 
   private async handleCriteriaChange(criteria: FilterCriteria): Promise<void> {
@@ -135,12 +152,240 @@ export class SmartStreamApp {
     await this.container.settingsRepository.setEnabled(enabled);
     await this.filterVideos();
   }
+  
+  private setupChipButtonListeners(): void {
+    // Use event delegation on the document to catch all chip button clicks
+    document.addEventListener('click', (event) => {
+      const target = event.target as Element;
+      
+      // Check if the clicked element is inside a chip button
+      const chipButton = target.closest('yt-chip-cloud-chip-renderer button, chip-shape button');
+      
+      if (chipButton) {
+        console.log('[SmartStream] Chip button clicked, triggering instant filter...');
+        
+        // INSTANTLY hide videos using CSS (no async, no waiting)
+        this.instantHideVideos();
+        
+        // Then do the proper filtering in the background
+        this.scheduleFullFilter();
+      }
+    }, true); // Use capture to ensure we get the event
+  }
+  
+  private setupInstantHideStyles(): void {
+    // Create a style element for instant hiding
+    this.quickHideStyleElement = document.createElement('style');
+    this.quickHideStyleElement.id = 'smartstream-quick-hide';
+    document.head.appendChild(this.quickHideStyleElement);
+  }
+  
+  private instantHideVideos(): void {
+    const startTime = performance.now();
+    
+    // Check if filtering is enabled
+    const enabledStr = localStorage.getItem('smartstream-filter-enabled');
+    if (enabledStr && JSON.parse(enabledStr) === false) return;
+    
+    // Get filter criteria synchronously from localStorage for speed
+    const stored = localStorage.getItem('smartstream-filter-criteria');
+    if (!stored) return;
+    
+    const criteria = JSON.parse(stored) as FilterCriteria;
+    const minDuration = criteria.minDuration || 0;
+    const maxDuration = criteria.maxDuration || Infinity;
+    
+    // Build CSS selectors for instant hiding
+    const hideSelectors: string[] = [];
+    
+    // Find all videos and check their duration immediately
+    const videos = document.querySelectorAll('ytd-video-renderer, ytd-grid-video-renderer, ytd-rich-item-renderer');
+    
+    videos.forEach((video, index) => {
+      const durationEl = video.querySelector('span.ytd-thumbnail-overlay-time-status-renderer, ytd-thumbnail-overlay-time-status-renderer');
+      if (!durationEl) return;
+      
+      const durationText = durationEl.textContent?.trim() || '';
+      const duration = this.quickParseDuration(durationText);
+      
+      // If duration is outside range, add to hide list
+      if (duration < minDuration || duration > maxDuration) {
+        // Add a unique attribute to this video for CSS targeting
+        video.setAttribute('data-smartstream-hide', 'true');
+        hideSelectors.push(`[data-smartstream-hide="true"]:nth-child(${index + 1})`);
+      } else {
+        // Make sure it's visible
+        video.removeAttribute('data-smartstream-hide');
+      }
+    });
+    
+    // Apply instant CSS hiding
+    if (this.quickHideStyleElement) {
+      this.quickHideStyleElement.textContent = `
+        [data-smartstream-hide="true"] {
+          display: none !important;
+        }
+      `;
+    }
+    
+    const endTime = performance.now();
+    console.log(`[SmartStream] Instant hide completed in ${(endTime - startTime).toFixed(2)}ms`);
+  }
+  
+  private quickParseDuration(text: string): number {
+    const parts = text.split(':').map(p => parseInt(p, 10) || 0);
+    if (parts.length === 3 && parts[0] !== undefined && parts[1] !== undefined && parts[2] !== undefined) {
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    }
+    if (parts.length === 2 && parts[0] !== undefined && parts[1] !== undefined) {
+      return parts[0] * 60 + parts[1];
+    }
+    return parts[0] || 0;
+  }
+  
+  private scheduleFullFilter(): void {
+    // Do the full filtering with proper async handling
+    requestAnimationFrame(async () => {
+      await this.quickFilterExistingVideos();
+      await this.waitForYouTubeContentLoadFast();
+      await this.filterVideos();
+    });
+  }
+  
+  private async quickFilterExistingVideos(): Promise<void> {
+    const criteria = await this.container.settingsRepository.getFilterCriteria();
+    const enabled = await this.container.settingsRepository.isEnabled();
+    
+    if (!enabled) return;
+    
+    // Immediately filter existing videos without waiting
+    const elements = this.container.currentAdapter.findVideoElements();
+    await this.filterNewVideos(elements, criteria);
+  }
+  
+  
+  private async waitForYouTubeContentLoadFast(): Promise<void> {
+    return new Promise((resolve) => {
+      let checkCount = 0;
+      const maxChecks = 20; // Max 1 second
+      
+      const checkInterval = setInterval(() => {
+        checkCount++;
+        
+        // More aggressive loading detection
+        const hasVideos = document.querySelector('ytd-video-renderer, ytd-grid-video-renderer, ytd-rich-item-renderer') !== null;
+        const isLoading = document.querySelector('ytd-skeleton-renderer, paper-spinner-lite[active]') !== null;
+        
+        // If we have videos and no loading indicators, we're done
+        if ((hasVideos && !isLoading) || checkCount >= maxChecks) {
+          clearInterval(checkInterval);
+          // Minimal delay - just one frame
+          requestAnimationFrame(() => resolve());
+        }
+      }, 50); // Check every 50ms instead of 100ms
+    });
+  }
+  
+  private setupNavigationListener(): void {
+    // YouTube uses the yt-navigate-finish event for SPA navigation
+    window.addEventListener('yt-navigate-finish', async () => {
+      console.log('[SmartStream] YouTube navigation detected, re-filtering...');
+      // Use the fast content load detection
+      requestAnimationFrame(async () => {
+        await this.waitForYouTubeContentLoadFast();
+        await this.filterVideos();
+      });
+    });
+  }
 
   private async filterVideos(): Promise<void> {
+    // Debounce rapid filter calls
+    const now = Date.now();
+    if (now - this.lastFilterTime < 100) {
+      // If we're calling too rapidly, debounce
+      if (this.filterDebounceTimer) {
+        clearTimeout(this.filterDebounceTimer);
+      }
+      
+      this.filterDebounceTimer = window.setTimeout(() => {
+        this.filterVideos();
+      }, 100);
+      return;
+    }
+    
+    this.lastFilterTime = now;
+    
     const criteria = await this.container.settingsRepository.getFilterCriteria();
     const enabled = await this.container.settingsRepository.isEnabled();
     
     await this.container.filterVideosUseCase.execute(criteria, enabled);
+    
+    // Check for videos with missing durations and schedule retry
+    this.checkForMissingDurations();
+  }
+  
+  private checkForMissingDurations(): void {
+    // Clear any existing retry timer
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+    
+    // Find videos with 0 duration that might need retry
+    const elements = this.container.currentAdapter.findVideoElements();
+    this.videosWithMissingDuration.clear();
+    
+    let videosNeedingRetry = 0;
+    
+    for (const element of elements) {
+      const metadata = this.container.currentAdapter.extractMetadata(element);
+      if (metadata && metadata.duration === 0) {
+        // Check if this is actually a video that should have duration
+        const liveIndicators = element.querySelectorAll('span.ytd-badge-supported-renderer');
+        let isLive = false;
+        
+        for (const indicator of liveIndicators) {
+          const text = indicator.textContent?.toUpperCase() || '';
+          if (text.includes('LIVE') || text.includes('PREMIERE')) {
+            isLive = true;
+            break;
+          }
+        }
+        
+        if (!isLive) {
+          // Not a live video, so it should have duration - needs retry
+          this.videosWithMissingDuration.add(element);
+          videosNeedingRetry++;
+        }
+      }
+    }
+    
+    // If we have videos with missing durations, schedule a single retry
+    if (videosNeedingRetry > 0) {
+      console.log(`[SmartStream] Found ${videosNeedingRetry} videos with missing durations, scheduling retry...`);
+      
+      // Schedule a single retry after 2 seconds
+      this.retryTimer = window.setTimeout(() => {
+        this.retryMissingDurations();
+      }, 2000);
+    }
+  }
+  
+  private async retryMissingDurations(): Promise<void> {
+    if (this.videosWithMissingDuration.size === 0) return;
+    
+    console.log(`[SmartStream] Retrying ${this.videosWithMissingDuration.size} videos with missing durations...`);
+    
+    // Only re-filter the videos that had missing durations
+    const criteria = await this.container.settingsRepository.getFilterCriteria();
+    const enabled = await this.container.settingsRepository.isEnabled();
+    
+    if (enabled) {
+      const videosToRetry = Array.from(this.videosWithMissingDuration);
+      await this.filterNewVideos(videosToRetry, criteria);
+    }
+    
+    this.videosWithMissingDuration.clear();
   }
 
   private async handleMessage(message: any, sendResponse: (response: any) => void): Promise<void> {
@@ -263,6 +508,86 @@ export class SmartStreamApp {
     this.observer?.stop();
     this.headerControls?.destroy();
     this.container.eventBus.clear();
+    
+    // Clear timers
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+    if (this.filterDebounceTimer) {
+      clearTimeout(this.filterDebounceTimer);
+      this.filterDebounceTimer = null;
+    }
+    
+    // Remove quick hide styles
+    if (this.quickHideStyleElement) {
+      this.quickHideStyleElement.remove();
+      this.quickHideStyleElement = null;
+    }
+    
+    this.videosWithMissingDuration.clear();
+  }
+  
+  private async filterNewVideos(elements: Element[], criteria: FilterCriteria): Promise<void> {
+    // Extract metadata and create Video objects for new elements only
+    const videos = [];
+    
+    for (const element of elements) {
+      const metadata = this.container.currentAdapter.extractMetadata(element);
+      if (metadata) {
+        const video = new (await import('../core/domain/video')).Video(metadata, element);
+        videos.push(video);
+      }
+    }
+    
+    if (videos.length === 0) return;
+    
+    // Apply filters to only these new videos
+    const filter = new (await import('../core/domain/filter')).CompositeFilter(criteria);
+    let hiddenCount = 0;
+    let totalTimeSaved = 0;
+    
+    for (const video of videos) {
+      if (filter.matches(video)) {
+        this.container.currentAdapter.show(video);
+      } else {
+        this.container.currentAdapter.hide(video);
+        hiddenCount++;
+        totalTimeSaved += video.metadata.duration;
+      }
+    }
+    
+    // Check for videos with missing durations
+    for (const element of elements) {
+      const metadata = this.container.currentAdapter.extractMetadata(element);
+      if (metadata && metadata.duration === 0) {
+        // Check if this is actually a video that should have duration
+        const liveIndicators = element.querySelectorAll('span.ytd-badge-supported-renderer');
+        let isLive = false;
+        
+        for (const indicator of liveIndicators) {
+          const text = indicator.textContent?.toUpperCase() || '';
+          if (text.includes('LIVE') || text.includes('PREMIERE')) {
+            isLive = true;
+            break;
+          }
+        }
+        
+        if (!isLive) {
+          this.videosWithMissingDuration.add(element);
+        }
+      }
+    }
+    
+    // Schedule retry only if needed and not already scheduled
+    if (this.videosWithMissingDuration.size > 0 && !this.retryTimer) {
+      console.log(`[SmartStream] ${this.videosWithMissingDuration.size} new videos need duration retry`);
+      this.retryTimer = window.setTimeout(() => {
+        this.retryMissingDurations();
+      }, 2000);
+    }
+    
+    console.log(`[SmartStream] Filtered ${videos.length} new videos, hidden: ${hiddenCount}`);
   }
 }
 
